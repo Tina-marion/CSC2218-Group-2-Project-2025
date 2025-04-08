@@ -33,3 +33,16 @@ class AccountController:
     @staticmethod
     def get_all_accounts() -> List[AccountResponse]:
         return [AccountResponse(**account) for account in accounts_db.values()]
+    
+    @staticmethod
+    def delete_account(account_id: int) -> bool:
+        if account_id not in accounts_db:
+            raise ValueError("Account not found")
+    
+    # Check if account has balance (optional safety check)
+        if accounts_db[account_id]["balance"] != 0:
+            raise ValueError("Account balance must be zero before deletion")
+    
+        del accounts_db[account_id]
+        return True
+    

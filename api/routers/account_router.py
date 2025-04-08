@@ -23,3 +23,15 @@ def get_account(account_id: int, username: str = Depends(get_current_user)):
 @router.get("/", response_model=list[AccountResponse])
 def get_all_accounts(username: str = Depends(get_current_user)):
     return AccountController.get_all_accounts()
+
+# Add this endpoint to your router
+@router.delete("/{account_id}")
+def delete_account(
+    account_id: int,
+    username: str = Depends(get_current_user)
+):
+    try:
+        success = AccountController.delete_account(account_id)
+        return {"status": "success", "message": f"Account {account_id} deleted"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
