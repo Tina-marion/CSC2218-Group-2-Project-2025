@@ -11,7 +11,7 @@ class BankApp:
 
         # Attempt to load your background image
         try:
-            self.bg_image = Image.open(r"C:\Users\tinaa\OneDrive\Desktop\BANK\Banking-application\gui\images\background.jpeg")
+            self.bg_image = Image.open(r"C:\Users\user\Desktop\Banking\Banking-application\gui\images\background.jpeg")
         except Exception as e:
             messagebox.showerror("Image Error", f"Error loading image: {e}")
             self.root.destroy()
