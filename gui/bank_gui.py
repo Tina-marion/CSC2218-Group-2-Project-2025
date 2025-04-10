@@ -3,11 +3,21 @@ from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 import tkinter.simpledialog
 
-
 class BankApp:
     def __init__(self, root):
         self.root = root
         self.root.title("ZenBank")
+
+         # Load and set the icon for all screens
+        try:
+            self.icon_image = Image.open("C:/Users/tinaa/OneDrive/Desktop/BANK/Banking-application/gui/images/bank icon.jpg")
+            self.icon_image = self.icon_image.resize((50, 50), Image.Resampling.LANCZOS)
+            self.icon_photo = ImageTk.PhotoImage(self.icon_image)
+            self.root.iconphoto(True, self.icon_photo)  # Set the icon for the root window
+        except Exception as e:
+            messagebox.showerror("Icon Error", f"Error loading icon: {e}")
+            self.root.destroy()
+            return
 
         # Attempt to load your background image
         try:
@@ -34,9 +44,16 @@ class BankApp:
 
         # Resize the window to match the background image dimensions
         root.geometry(f"{self.bg_photo.width()}x{self.bg_photo.height()}")
+        
+        self.account_types = []  # To hold created account types
+        self.current_account = None
 
-        # ----------------- Login Screen -----------------
-        self.login_frame = tk.Frame(root, bg="white", bd=2, relief="groove")
+        # Start with the login screen
+        self.show_login_screen()
+
+    def show_login_screen(self):
+        """Displays the login screen."""
+        self.login_frame = tk.Frame(self.root, bg="white", bd=2, relief="groove")
         self.canvas.create_window(150, 50, anchor="nw", window=self.login_frame)
 
         # Widgets in the login frame
@@ -62,10 +79,6 @@ class BankApp:
         )
         self.login_button.grid(row=3, column=0, columnspan=2, pady=10)
 
-        # ----------------- Account Management -----------------
-        self.account_types = []  # To hold created account types
-        self.current_account = None
-
     def perform_login(self):
         """Authenticate user (dummy credentials) and move to the next screen if successful."""
         username = self.username_entry.get()
@@ -77,7 +90,7 @@ class BankApp:
             self.show_account_management_screen()
         else:
             messagebox.showerror("Login Failed", "Invalid credentials.")
-
+    
     def show_account_management_screen(self):
         """Destroys the login UI and displays the account management screen."""
         self.login_frame.destroy()
@@ -87,7 +100,7 @@ class BankApp:
         self.canvas.create_window(0, 0, anchor="nw", window=self.account_management_frame, 
                                   width=self.bg_photo.width(), height=self.bg_photo.height())
 
-        # Account creation options
+        # Title
         title_label = tk.Label(
             self.account_management_frame, 
             text="Account Management", 
@@ -97,22 +110,34 @@ class BankApp:
         )
         title_label.pack(pady=(20, 15))
 
-        # Customer Type selection
+        # Go back button (Back arrow)
+        back_button = tk.Button(self.account_management_frame, text="← Back", command=self.show_login_screen, 
+                                bg="#FF6347", fg="white", font=("Arial", 10, "bold"))
+        back_button.pack(pady=10, anchor="w")
+
+        # Parent frame for account type options
         account_type_frame = tk.Frame(self.account_management_frame, bg="white")
         account_type_frame.pack(pady=10)
 
         tk.Label(account_type_frame, text="Select Account Type", bg="white", font=("Arial", 12, "bold")).pack()
 
         self.account_type = tk.StringVar(value="checking")
-        checking_radio = tk.Radiobutton(account_type_frame, text="Checking Account", variable=self.account_type,
+
+        # Container for Checking Account
+        checking_container = tk.Frame(account_type_frame, bg="white", bd=1, relief="groove", padx=10, pady=5)
+        checking_container.pack(pady=5, fill="x")
+        checking_radio = tk.Radiobutton(checking_container, text="Checking Account", variable=self.account_type,
                                         value="checking", bg="white", font=("Arial", 11))
-        checking_radio.pack(anchor="w", pady=5)
+        checking_radio.pack(anchor="w")
 
-        savings_radio = tk.Radiobutton(account_type_frame, text="Savings Account", variable=self.account_type,
+        # Container for Savings Account
+        savings_container = tk.Frame(account_type_frame, bg="white", bd=1, relief="groove", padx=10, pady=5)
+        savings_container.pack(pady=5, fill="x")
+        savings_radio = tk.Radiobutton(savings_container, text="Savings Account", variable=self.account_type,
                                        value="savings", bg="white", font=("Arial", 11))
-        savings_radio.pack(anchor="w", pady=5)
+        savings_radio.pack(anchor="w")
 
-        # Proceed Button to create account
+        # Proceed Button
         proceed_button = tk.Button(self.account_management_frame, text="Create Account", 
                                    command=self.create_account, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"))
         proceed_button.pack(pady=20)
@@ -144,6 +169,11 @@ class BankApp:
         self.deposit_withdraw_frame = tk.Frame(self.root, bg="white", bd=2, relief="flat")
         self.canvas.create_window(0, 0, anchor="nw", window=self.deposit_withdraw_frame,
                                   width=self.bg_photo.width(), height=self.bg_photo.height())
+
+        # Go back button (Back arrow)
+        back_button = tk.Button(self.deposit_withdraw_frame, text="← Back", command=self.show_account_management_screen, 
+                                bg="#FF6347", fg="white", font=("Arial", 10, "bold"))
+        back_button.pack(pady=10, anchor="w")
 
         # Account info label
         account_info_label = tk.Label(self.deposit_withdraw_frame, text=f"Account Type: {self.current_account.account_type}\nBalance: {self.current_account.balance}",
@@ -193,12 +223,25 @@ class BankApp:
             return None
 
     def view_transaction_history(self):
-        """Displays the transaction history."""
-        if not self.current_account.transactions:
-            messagebox.showinfo("No Transactions", "No transactions made yet.")
-        else:
-            history = "\n".join(self.current_account.transactions)
-            messagebox.showinfo("Transaction History", history)
+       """Displays the transaction history in a scrollable list."""
+       if not self.current_account.transactions:
+        messagebox.showinfo("No Transactions", "No transactions made yet.")
+       else:
+           history_window = tk.Toplevel(self.root)
+           history_window.title("Transaction History")
+
+        # Create a scrollable listbox
+           history_listbox = tk.Listbox(history_window, width=50, height=10)
+           history_listbox.pack(padx=10, pady=10)
+
+        # Populate the listbox with transactions
+           for transaction in self.current_account.transactions:
+            history_listbox.insert(tk.END, transaction)
+
+        # Add a scrollbar to the listbox
+           scrollbar = tk.Scrollbar(history_window, orient="vertical", command=history_listbox.yview)
+           scrollbar.pack(side="right", fill="y")
+           history_listbox.config(yscrollcommand=scrollbar.set)
 
 
 class BankAccount:
