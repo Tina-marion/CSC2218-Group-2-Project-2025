@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
-from models.transaction import Transaction, TransactionType
+from domain.models.transaction import Transaction, TransactionType
 
 class TestTransaction(unittest.TestCase):
     def setUp(self):
