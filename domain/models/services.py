@@ -14,19 +14,19 @@ class AccountService:
     SAVINGS_INTEREST_RATE = Decimal('0.01')  # 1% interest for savings
     
     @staticmethod
-    def create_account(account_type: str, initial_balance: Decimal = Decimal('0.00')) -> Tuple[Account, Transaction]:
+    def create_account(account_type: str, initial_balance: Decimal = Decimal('0.00')) -> Tuple[Account, Optional[Transaction]]:
         """
-        Creates a new account with initial deposit transaction.
+        Creates a new account with optional initial deposit transaction.
         
         Args:
             account_type: Type of account ('checking' or 'savings')
-            initial_balance: Initial deposit amount
+            initial_balance: Initial deposit amount (default 0)
             
         Returns:
-            Tuple of (created Account, initial Transaction)
+            Tuple of (created Account, initial Transaction if amount > 0)
             
         Raises:
-            ValueError: If invalid account type or initial balance
+            ValueError: If invalid account type or negative initial balance
         """
         if account_type.lower() not in ('checking', 'savings'):
             raise ValueError("Invalid account type. Must be 'checking' or 'savings'")
@@ -40,16 +40,18 @@ class AccountService:
             initial_balance=float(initial_balance)
         )
         
-        transaction = Transaction(
-            transaction_id=f"TX-INIT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            transaction_type=TransactionType.DEPOSIT,
-            amount=float(initial_balance),
-            account_id=account.account_id,
-            description="Initial deposit"
-        )
+        # Only create transaction if initial deposit > 0
+        transaction = None
+        if initial_balance > Decimal('0.00'):
+            transaction = Transaction(
+                transaction_id=f"TX-INIT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                transaction_type=TransactionType.DEPOSIT,
+                amount=float(initial_balance),
+                account_id=account.account_id,
+                description="Initial deposit"
+            )
         
-        return account, transaction
-
+        return account, transaction  # transaction may be None
     @staticmethod
     def execute_transaction(account: Account, transaction: Transaction) -> bool:
         """

@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from models.account import Account, AccountStatus
+from domain.models.account import Account, AccountStatus
 
 class TestAccount(unittest.TestCase):
     def setUp(self):
