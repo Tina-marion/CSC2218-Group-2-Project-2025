@@ -502,7 +502,7 @@ class BankApp:
         history_window.title(f"Transaction History - {self.current_account.account_id}")
         history_window.geometry("800x500")
         
-        # Header frame
+        
         header_frame = tk.Frame(history_window)
         header_frame.pack(fill=tk.X, padx=10, pady=10)
         

@@ -4,7 +4,7 @@ from typing import List
 from .transaction import Transaction, TransactionType
 
 class AccountStatus(Enum):
-    """Enum representing account statuses"""
+    """Representing account statuses"""
     ACTIVE = auto()
     CLOSED = auto()
     FROZEN = auto()
