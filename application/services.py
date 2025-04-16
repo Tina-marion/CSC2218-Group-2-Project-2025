@@ -1,140 +1,133 @@
-from datetime import datetime
-from decimal import Decimal
-from typing import List, Optional, Tuple
-from ..domain.models.account import Account, AccountStatus
-from ..domain.models.transaction import Transaction, TransactionType
+# application/services.py
 
-class AccountService:
+from typing import Protocol
+from domain.entities import Account, Transaction, TransactionType # type: ignore
+from domain.exceptions import InsufficientFunds # type: ignore
+import logging
+
+from domain.ports import account_repository, transaction_repository
+
+
+class NotificationSender(Protocol):
+    def send(self, message: str) -> None:
+        ...
+
+class AccountCreationService:
     """
-    Service layer for banking operations with business rules and validation.
-    Handles all core banking operations and maintains data integrity.
+    Responsible for creating accounts. (In a complete solution, you might validate a minimum deposit.)
     """
-    
-    MINIMUM_BALANCE = Decimal('50.00')  # Minimum balance for checking accounts
-    SAVINGS_INTEREST_RATE = Decimal('0.01')  # 1% interest for savings
-    
-    @staticmethod
-    def create_account(account_type: str, initial_balance: Decimal = Decimal('0.00')) -> Tuple[Account, Optional[Transaction]]:
-       
-        if account_type.lower() not in ('checking', 'savings'):
-            raise ValueError("Invalid account type. Must be 'checking' or 'savings'")
-            
-        if initial_balance < Decimal('0.00'):
-            raise ValueError("Initial balance cannot be negative")
-            
-        account = Account(
-            account_id=f"ACCT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            account_type=account_type,
-            initial_balance=float(initial_balance)
-        )
-        
-        # Only create transaction if initial deposit > 0
-        transaction = None
-        if initial_balance > Decimal('0.00'):
-            transaction = Transaction(
-                transaction_id=f"TX-INIT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                transaction_type=TransactionType.DEPOSIT,
-                amount=float(initial_balance),
-                account_id=account.account_id,
-                description="Initial deposit"
-            )
-        
-        return account, transaction  # transaction may be None
-    @staticmethod
-    def execute_transaction(account: Account, transaction: Transaction) -> bool:
-      
-        if account.status != AccountStatus.ACTIVE:
-            raise ValueError("Cannot transact on closed account")
-            
-        if transaction.amount <= 0:
-            raise ValueError("Transaction amount must be positive")
-            
-        if transaction.transaction_type == TransactionType.DEPOSIT:
-            account.deposit(transaction.amount)
-            return True
-            
-        elif transaction.transaction_type == TransactionType.WITHDRAWAL:
-            # Additional business rule: minimum balance requirement
-            if account.account_type == "checking" and \
-               (account.balance - transaction.amount) < float(AccountService.MINIMUM_BALANCE):
-                return False
-                
-            return account.withdraw(transaction.amount)
-            
+    def __init__(self, account_repository: account_repository):
+        self.account_repository = account_repository
+
+    def create_account(self, account_type: str, owner_id: str, initial_deposit: float = 0.0) -> str:
+        if account_type.upper() == "CHECKING":
+            from domain.models import CheckingAccount  
+            account = CheckingAccount(owner_id)
+        elif account_type.upper() == "SAVINGS":
+            from domain.models import SavingsAccount
+            account = SavingsAccount(owner_id)
         else:
-            raise ValueError(f"Unsupported transaction type: {transaction.transaction_type}")
+            raise ValueError("Unsupported account type.")
+        
+        if initial_deposit > 0:
+            account.balance += initial_deposit
+        
+        self.account_repository.create_account(account)
+        return account.account_id
 
-    @staticmethod
-    def calculate_interest(account: Account) -> Optional[Transaction]:
-       
-        if account.account_type != "savings":
-            return None
-            
-        interest_amount = Decimal(str(account.balance)) * AccountService.SAVINGS_INTEREST_RATE / Decimal('12')
-        interest_amount = interest_amount.quantize(Decimal('.01'))
-        
-        if interest_amount > 0:
-            transaction = Transaction(
-                transaction_id=f"TX-INT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                transaction_type=TransactionType.INTEREST,
-                amount=float(interest_amount),
-                account_id=account.account_id,
-                description="Monthly interest"
-            )
-            
-            account.deposit(transaction.amount)
-            return transaction
-            
-        return None
 
-    @staticmethod
-    def transfer_funds(source: Account, target: Account, amount: Decimal) -> Tuple[bool, List[Transaction]]:
-       
-        if source.status != AccountStatus.ACTIVE or target.status != AccountStatus.ACTIVE:
-            return False, []
-            
-        if amount <= Decimal('0.00'):
-            return False, []
-            
-        timestamp = datetime.now()
-        transactions = []
-        
-        # Create withdrawal transaction
-        withdrawal_tx = Transaction(
-            transaction_id=f"TX-TF-OUT-{timestamp.strftime('%Y%m%d%H%M%S')}",
-            transaction_type=TransactionType.WITHDRAWAL,
-            amount=float(amount),
-            account_id=source.account_id,
-            description=f"Transfer to {target.account_id}"
-        )
-        
-        # Create deposit transaction
-        deposit_tx = Transaction(
-            transaction_id=f"TX-TF-IN-{timestamp.strftime('%Y%m%d%H%M%S')}",
+class TransactionService:
+    def __init__(self, account_repository: account_repository,
+                 transaction_repository: transaction_repository,
+                 notification_sender: NotificationSender):
+        self.account_repository = account_repository
+        self.transaction_repository = transaction_repository
+        self.notification_sender = notification_sender
+
+    def deposit(self, account_id: str, amount: float) -> Transaction:
+        account = self.account_repository.get_account_by_id(account_id)
+        if account is None:
+            raise ValueError("Account not found.")
+        if amount <= 0:
+            raise ValueError("Deposit amount must be positive.")
+        account.balance += amount
+        txn = Transaction(
             transaction_type=TransactionType.DEPOSIT,
-            amount=float(amount),
-            account_id=target.account_id,
-            description=f"Transfer from {source.account_id}"
+            amount=amount,
+            account_id=account.account_id,
+            description="Deposit"
         )
-        
-        # Execute as atomic operation
-        success = source.withdraw(withdrawal_tx.amount)
-        if success:
-            target.deposit(deposit_tx.amount)
-            transactions.extend([withdrawal_tx, deposit_tx])
-            return True, transactions
-            
-        return False, transactions
+        account.add_transaction(txn)
+        self.transaction_repository.save_transaction(txn)
+        self._notify(txn)
+        logging.info("Deposit processed: %s", txn)
+        self.account_repository.update_account(account)
+        return txn
 
-    @staticmethod
-    def close_account(account: Account) -> bool:
+    def withdraw(self, account_id: str, amount: float) -> Transaction:
+        account = self.account_repository.get_account_by_id(account_id)
+        if account is None:
+            raise ValueError("Account not found.")
+        if not account.can_withdraw(amount):
+            raise InsufficientFunds("Insufficient funds or withdrawal not permitted.")
+        account.balance -= amount
+        txn = Transaction(
+            transaction_type=TransactionType.WITHDRAWAL,
+            amount=amount,
+            account_id=account.account_id,
+            description="Withdrawal"
+        )
+        account.add_transaction(txn)
+        self.transaction_repository.save_transaction(txn)
+        self._notify(txn)
+        logging.info("Withdrawal processed: %s", txn)
+        self.account_repository.update_account(account)
+        return txn
+
+    def transfer(self, source_account_id: str, destination_account_id: str, amount: float) -> Transaction:
+        source = self.account_repository.get_account_by_id(source_account_id)
+        destination = self.account_repository.get_account_by_id(destination_account_id)
+        if source is None or destination is None:
+            raise ValueError("One or both accounts not found.")
+        if not source.can_withdraw(amount):
+            raise InsufficientFunds("Source account cannot withdraw the requested amount.")
+
         
-        if account.status == AccountStatus.CLOSED:
-            return False
-            
-        # Business rule: Cannot close account with positive balance
-        if account.balance > 0:
-            return False
-            
-        account.close_account()
-        return True
+        self.withdraw(source_account_id, amount)
+        self.deposit(destination_account_id, amount)
+        
+        txn = Transaction(
+            transaction_type=TransactionType.TRANSFER,
+            amount=amount,
+            account_id=source.account_id,  
+            source_account_id=source.account_id,
+            destination_account_id=destination.account_id,
+            description=f"Transfer from {source.account_id} to {destination.account_id}"
+        )
+        source.add_transaction(txn)
+        destination.add_transaction(txn)
+        self.transaction_repository.save_transaction(txn)
+        self._notify(txn)
+        logging.info("Transfer processed: %s", txn)
+        self.account_repository.update_account(source)
+        self.account_repository.update_account(destination)
+        return txn
+
+    def _notify(self, txn: Transaction) -> None:
+        message = f"Transaction Alert: {txn}"
+        self.notification_sender.send(message)
+
+
+class AccountRepository(Protocol):
+    def create_account(self, account: Account) -> None:
+        ...
+    def get_account_by_id(self, account_id: str) -> Account | None:
+        ...
+    def update_account(self, account: Account) -> None:
+        ...
+
+class TransactionRepository(Protocol):
+    def save_transaction(self, txn: Transaction) -> None:
+        ...
+    def get_transactions_for_account(self, account_id: str) -> list[Transaction]:
+        ...

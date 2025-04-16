@@ -1,114 +1,94 @@
+# domain/entities.py
+
+from __future__ import annotations
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from abc import ABC, abstractmethod
+from typing import Optional, List
 import uuid
 
-# -------------------------------
-# Enum for Account Status & Transaction Type
-# -------------------------------
-
-class AccountStatus(Enum):
-<<<<<<< HEAD
-=======
-    """Representing account statuses"""
->>>>>>> dd78142bee6b66306136b4ffb9b3d24045d68fb1
-    ACTIVE = auto()
-    CLOSED = auto()
-    FROZEN = auto()
-
 class TransactionType(Enum):
-    DEPOSIT = "DEPOSIT"
-    WITHDRAW = "WITHDRAW"
+    DEPOSIT = auto()
+    WITHDRAWAL = auto()
+    TRANSFER = auto()
+    INTEREST = auto()
+    FEE = auto()
 
-# -------------------------------
-# Transaction Entity
-# -------------------------------
-
+@dataclass
 class Transaction:
-    def __init__(self, transaction_type: TransactionType, amount: float, account_id: str):
-        self.transaction_id = str(uuid.uuid4())
-        self.transaction_type = transaction_type
-        self.amount = amount
-        self.timestamp = datetime.now()
-        self.account_id = account_id
+    transaction_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    transaction_type: TransactionType = TransactionType.DEPOSIT
+    amount: float = 0.0
+    # For deposit, withdrawal, fee, interest – this is the primary account.
+    account_id: str = ""
+    # For transfers record both accounts.
+    source_account_id: Optional[str] = None
+    destination_account_id: Optional[str] = None
+    timestamp: datetime = field(default_factory=datetime.now)
+    description: Optional[str] = None
 
-    def __str__(self):
-        return f"{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')} | {self.transaction_type.name} | ${self.amount:.2f}"
+    def __post_init__(self) -> None:
+        if self.amount <= 0:
+            raise ValueError("Transaction amount must be positive")
+        if self.transaction_type == TransactionType.TRANSFER:
+            if not self.source_account_id or not self.destination_account_id:
+                raise ValueError("Transfer transactions require source and destination account IDs.")
 
-# -------------------------------
-# Abstract Account Entity
-# -------------------------------
+    def __str__(self) -> str:
+        if self.transaction_type == TransactionType.TRANSFER:
+            return (f"{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')} "
+                    f"[{self.transaction_id[:8]}] {self.transaction_type.name} "
+                    f"${self.amount:.2f} (From: {self.source_account_id} To: {self.destination_account_id})")
+        else:
+            return (f"{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')} "
+                    f"[{self.transaction_id[:8]}] {self.transaction_type.name} "
+                    f"${self.amount:.2f} (Account: {self.account_id})")
 
 class Account(ABC):
-    def __init__(self, account_type: str):
-        self.account_id = str(uuid.uuid4())
-        self.account_type = account_type
-        self.balance = 0.0
-        self.status = AccountStatus.ACTIVE
-        self.creation_date = datetime.now()
-        self.transactions = []
+    def __init__(self, account_type: str, owner_id: Optional[str] = None):
+        self.account_id: str = str(uuid.uuid4())
+        self.account_type: str = account_type
+        self.balance: float = 0.0
+        self.status: str = "ACTIVE"  # In a more robust implementation, use an Enum.
+        self.creation_date: datetime = datetime.now()
+        self.transactions: List[Transaction] = []
+        self.owner_id: Optional[str] = owner_id
 
-    def deposit(self, amount: float):
-        if amount <= 0:
-            raise ValueError("Deposit amount must be positive.")
-        self.balance += amount
-        self.transactions.append(Transaction(TransactionType.DEPOSIT, amount, self.account_id))
+    def add_transaction(self, txn: Transaction) -> None:
+        self.transactions.append(txn)
 
-    def withdraw(self, amount: float):
-        if not self.can_withdraw(amount):
-            raise ValueError("Withdrawal denied by account rules or insufficient funds.")
-        self.balance -= amount
-        self.transactions.append(Transaction(TransactionType.WITHDRAW, amount, self.account_id))
+    def view_balance(self) -> str:
+        return f"Account {self.account_id} Balance: ${self.balance:.2f}"
 
-    def view_balance(self):
-        return f"Current balance: ${self.balance:.2f}"
-
-    def view_transaction_history(self):
-        return "\n".join(str(txn) for txn in self.transactions) if self.transactions else "No transactions yet."
+    def view_transaction_history(self) -> str:
+        if not self.transactions:
+            return "No transactions yet."
+        return "\n".join(str(txn) for txn in self.transactions)
 
     @abstractmethod
     def can_withdraw(self, amount: float) -> bool:
         pass
 
-# -------------------------------
-# Specific Account Types
-# -------------------------------
+    def __str__(self) -> str:
+        return (f"Account ID: {self.account_id}\n"
+                f"Type: {self.account_type}\n"
+                f"Status: {self.status}\n"
+                f"Balance: ${self.balance:.2f}\n"
+                f"Created on: {self.creation_date.strftime('%Y-%m-%d %H:%M:%S')}")
 
 class CheckingAccount(Account):
-    def __init__(self):
-        super().__init__("CHECKING")
+    def __init__(self, owner_id: Optional[str] = None):
+        super().__init__("CHECKING", owner_id)
 
     def can_withdraw(self, amount: float) -> bool:
-        return self.status == AccountStatus.ACTIVE and self.balance >= amount
+        return self.status == "ACTIVE" and self.balance >= amount
 
 class SavingsAccount(Account):
-    def __init__(self):
-        super().__init__("SAVINGS")
+    MIN_BALANCE: float = 100.0
+
+    def __init__(self, owner_id: Optional[str] = None):
+        super().__init__("SAVINGS", owner_id)
 
     def can_withdraw(self, amount: float) -> bool:
-        # Must maintain at least $100 after withdrawal
-        return self.status == AccountStatus.ACTIVE and (self.balance - amount) >= 100
-
-# -------------------------------
-# Example Usage
-# -------------------------------
-
-if __name__ == "__main__":
-    acct1 = CheckingAccount()
-    acct1.deposit(500)
-    acct1.withdraw(200)
-
-    acct2 = SavingsAccount()
-    acct2.deposit(1000)
-    try:
-        acct2.withdraw(950)  # Should fail due to $100 minimum balance rule
-    except ValueError as e:
-        print(f"Error: {e}")
-
-    print("\n--- Checking Account ---")
-    print(acct1.view_balance())
-    print(acct1.view_transaction_history())
-
-    print("\n--- Savings Account ---")
-    print(acct2.view_balance())
-    print(acct2.view_transaction_history())
+        return self.status == "ACTIVE" and (self.balance - amount) >= self.MIN_BALANCE
