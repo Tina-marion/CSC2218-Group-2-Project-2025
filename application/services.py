@@ -1,8 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Tuple
-from .account import Account, AccountStatus
-from .transaction import Transaction, TransactionType
+from ..domain.models.account import Account, AccountStatus
+from ..domain.models.transaction import Transaction, TransactionType
 
 class AccountService:
     """
@@ -15,19 +15,7 @@ class AccountService:
     
     @staticmethod
     def create_account(account_type: str, initial_balance: Decimal = Decimal('0.00')) -> Tuple[Account, Optional[Transaction]]:
-        """
-        Creates a new account with optional initial deposit transaction.
-        
-        Args:
-            account_type: Type of account ('checking' or 'savings')
-            initial_balance: Initial deposit amount (default 0)
-            
-        Returns:
-            Tuple of (created Account, initial Transaction if amount > 0)
-            
-        Raises:
-            ValueError: If invalid account type or negative initial balance
-        """
+       
         if account_type.lower() not in ('checking', 'savings'):
             raise ValueError("Invalid account type. Must be 'checking' or 'savings'")
             
@@ -54,19 +42,7 @@ class AccountService:
         return account, transaction  # transaction may be None
     @staticmethod
     def execute_transaction(account: Account, transaction: Transaction) -> bool:
-        """
-        Executes a transaction with full business rule validation.
-        
-        Args:
-            account: Account to operate on
-            transaction: Transaction to execute
-            
-        Returns:
-            bool: True if successful, False if rejected
-            
-        Raises:
-            ValueError: For invalid transactions
-        """
+      
         if account.status != AccountStatus.ACTIVE:
             raise ValueError("Cannot transact on closed account")
             
@@ -90,15 +66,7 @@ class AccountService:
 
     @staticmethod
     def calculate_interest(account: Account) -> Optional[Transaction]:
-        """
-        Calculates and applies monthly interest for savings accounts.
-        
-        Args:
-            account: The savings account to process
-            
-        Returns:
-            Transaction if interest applied, None otherwise
-        """
+       
         if account.account_type != "savings":
             return None
             
@@ -121,17 +89,7 @@ class AccountService:
 
     @staticmethod
     def transfer_funds(source: Account, target: Account, amount: Decimal) -> Tuple[bool, List[Transaction]]:
-        """
-        Transfers funds between accounts with full transaction history.
-        
-        Args:
-            source: Source account
-            target: Target account
-            amount: Amount to transfer
-            
-        Returns:
-            Tuple of (success status, list of transactions created)
-        """
+       
         if source.status != AccountStatus.ACTIVE or target.status != AccountStatus.ACTIVE:
             return False, []
             
@@ -170,15 +128,7 @@ class AccountService:
 
     @staticmethod
     def close_account(account: Account) -> bool:
-        """
-        Closes an account with business rule validation.
         
-        Args:
-            account: Account to close
-            
-        Returns:
-            bool: True if successfully closed
-        """
         if account.status == AccountStatus.CLOSED:
             return False
             

@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from domain.models.account import Account, AccountStatus
 from domain.models.transaction import Transaction, TransactionType
-from domain.models.services import AccountService
+from application.services import AccountService
 
 class BankApp:
     def __init__(self, root):
