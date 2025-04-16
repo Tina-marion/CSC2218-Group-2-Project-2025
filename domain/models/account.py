@@ -8,6 +8,10 @@ import uuid
 # -------------------------------
 
 class AccountStatus(Enum):
+<<<<<<< HEAD
+=======
+    """Representing account statuses"""
+>>>>>>> dd78142bee6b66306136b4ffb9b3d24045d68fb1
     ACTIVE = auto()
     CLOSED = auto()
     FROZEN = auto()
