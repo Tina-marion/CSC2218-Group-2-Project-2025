@@ -1,15 +1,4 @@
-from datetime import datetime
-from enum import Enum, auto
-from typing import Optional
-from dataclasses import dataclass
 
-class TransactionType(Enum):
-    """Enum representing different types of transactions"""
-    DEPOSIT = auto()
-    WITHDRAWAL = auto()
-    TRANSFER = auto()
-    INTEREST = auto()
-    FEE = auto()
 
 @dataclass
 class Transaction:

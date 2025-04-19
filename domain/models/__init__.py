@@ -7,7 +7,7 @@ from models import Account, Transaction
 
 from .account import Account, AccountStatus
 from .transaction import Transaction, TransactionType
-from .services import AccountService
+from ...application.services import AccountService
 
 __all__ = [
     'Account',

@@ -1,33 +1,33 @@
-# infrastructure/repositories/memory/account_repository.py
-from typing import Dict, List, Optional
-from domain.models.account import Account
-from domain.ports.account_repository import AccountRepository
 
-class MemoryAccountRepository(AccountRepository):
+
+from typing import Dict, List
+from domain.entities import Account, Transaction # type: ignore
+from application.services import AccountRepository, TransactionRepository
+
+class InMemoryAccountRepository(AccountRepository):
     def __init__(self):
-        self._storage: Dict[int, Account] = {}
-        self._counter = 1
+        self.accounts: Dict[str, Account] = {}
 
-    def create(self, account: Account) -> Account:
-        account.id = self._counter
-        self._storage[account.id] = account
-        self._counter += 1
-        return account
+    def create_account(self, account: Account) -> None:
+        self.accounts[account.account_id] = account
 
-    def find_by_id(self, account_id: int) -> Optional[Account]:
-        return self._storage.get(account_id)
+    def get_account_by_id(self, account_id: str) -> Account | None:
+        return self.accounts.get(account_id)
 
-    def find_all(self) -> List[Account]:
-        return list(self._storage.values())
+    def update_account(self, account: Account) -> None:
+        if account.account_id in self.accounts:
+            self.accounts[account.account_id] = account
 
-    def delete(self, account_id: int) -> bool:
-        if account_id not in self._storage:
-            return False
-        del self._storage[account_id]
-        return True
+class InMemoryTransactionRepository(TransactionRepository):
+    def __init__(self):
+        self.transactions: List[Transaction] = []
 
-    def update(self, account: Account) -> Account:
-        if account.id not in self._storage:
-            raise ValueError("Account not found")
-        self._storage[account.id] = account
-        return account
+    def save_transaction(self, txn: Transaction) -> None:
+        self.transactions.append(txn)
+
+    def get_transactions_for_account(self, account_id: str) -> List[Transaction]:
+        return [txn for txn in self.transactions if (
+            txn.account_id == account_id or
+            txn.source_account_id == account_id or
+            txn.destination_account_id == account_id
+        )]

@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from domain.models.account import Account, AccountStatus
 from domain.models.transaction import Transaction, TransactionType
-from domain.models.services import AccountService
+from application.services import AccountService
 
 class BankApp:
     def __init__(self, root):
@@ -504,7 +504,7 @@ class BankApp:
         history_window.title(f"Transaction History - {self.current_account.account_id}")
         history_window.geometry("800x500")
         
-        
+        # Header frame
         header_frame = tk.Frame(history_window)
         header_frame.pack(fill=tk.X, padx=10, pady=10)
         
