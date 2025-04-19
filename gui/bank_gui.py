@@ -41,7 +41,7 @@ class BankApp:
     def setup_background(self):
         """Configure the background image for the application"""
         try:
-            bg_image = Image.open(r"C:\Users\tinaa\OneDrive\Desktop\BANK\Banking-application\gui\images\background.jpeg")
+            bg_image = Image.open(r"C:\Users\user\Desktop\Banking\Banking-application\gui\images\background.jpeg")
             bg_image = bg_image.resize((self.window_width, self.window_height), Image.Resampling.LANCZOS)
             self.bg_photo = ImageTk.PhotoImage(bg_image)
             

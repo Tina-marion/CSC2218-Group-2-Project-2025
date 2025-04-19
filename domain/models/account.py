@@ -10,7 +10,7 @@ class AccountStatus(Enum):
     FROZEN = auto()
 
 class Account:
-    """Represents a bank account with transaction capabilities"""
+    
     
     def __init__(self, account_id: str, account_type: str, initial_balance: float = 0.0):
         """

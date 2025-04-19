@@ -13,18 +13,6 @@ class TransactionType(Enum):
 
 @dataclass
 class Transaction:
-    """
-    Represents a financial transaction in the banking system.
-    
-    Attributes:
-        transaction_id: Unique identifier for the transaction
-        transaction_type: Type of transaction (from TransactionType enum)
-        amount: Monetary amount of the transaction (always positive)
-        account_id: ID of the account this transaction belongs to
-        timestamp: When the transaction occurred (auto-generated if not provided)
-        description: Optional human-readable description
-        related_account: For transfers, the other account involved
-    """
     transaction_id: str
     transaction_type: TransactionType
     amount: float
