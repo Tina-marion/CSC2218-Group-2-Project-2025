@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from domain.models.account import Account, AccountStatus
 from domain.models.transaction import Transaction, TransactionType
-from application.services import AccountService
+from domain.services.account_service import AccountService
 
 class BankApp:
     def __init__(self, root):
@@ -199,30 +199,44 @@ class BankApp:
             ).pack(pady=5)
     
     def create_account(self):
-        """Creates a new account using domain services"""
-        account_type = self.account_type.get()
+      """Creates a new account using domain services"""
+      account_type = self.account_type.get()
+    
+    # Ask for account name
+      account_name = tkinter.simpledialog.askstring(
+        "Account Name", 
+        "Enter a name for this account:",
+        parent=self.root
+    )
+    
+      if not account_name:  # User cancelled or entered empty name
+        return
+    
+      try:
+        # Create with zero balance by default
+        account, transaction = AccountService.create_account(
+            account_type=account_type,
+            name=account_name
+        )
         
-        try:
-            # Create with zero balance by default
-            account, transaction = AccountService.create_account(account_type)
+        self.accounts.append(account)
+        self.current_account = account
+        
+        messagebox.showinfo(
+            "Success",
+            f"{account_type.capitalize()} account created!\n"
+            f"Account Name: {account_name}\n"
+            f"Account #: {account.account_id}"
+        )
+        
+        # Offer to make initial deposit
+        if messagebox.askyesno("Initial Deposit", "Make initial deposit now?"):
+            self.show_transaction_screen(default_type="deposit")
+        else:
+            self.show_account_operations_screen()
             
-            self.accounts.append(account)
-            self.current_account = account
-            
-            messagebox.showinfo(
-                "Success",
-                f"{account_type.capitalize()} account created!\n"
-                f"Account #: {account.account_id}"
-            )
-            
-            # Offer to make initial deposit
-            if messagebox.askyesno("Initial Deposit", "Make initial deposit now?"):
-                self.show_transaction_screen(default_type="deposit")
-            else:
-                self.show_account_operations_screen()
-                
-        except ValueError as e:
-            messagebox.showerror("Error", str(e))
+      except ValueError as e:
+        messagebox.showerror("Error", str(e))
     
     def show_account_selection(self):
         """Show dialog to select from existing accounts"""
