@@ -15,6 +15,10 @@ class AccountStatus(Enum):
     CLOSED = "CLOSED"
     FROZEN = "FROZEN"
 
+class AccountType(Enum):
+    CHECKING = "CHECKING"
+    SAVINGS = "SAVINGS"    
+
 class TransactionType(Enum):
     DEPOSIT = auto()
     WITHDRAWAL = auto()
