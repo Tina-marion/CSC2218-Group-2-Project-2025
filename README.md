@@ -10,3 +10,6 @@ The Banking App offers a comprehensive set of core features designed to provide 
 The backend is built using FastAPI , to enable efficient and scalable RESTful API development.The architecture follows a Clean Architecture model, ensuring modularity and separation of concerns across layers (domain, application, service, and presentation layers). For data storage, the application starts with in-memory solutions and integrates SQLite for persistent storage. Testing is handled using pytest frameworks to ensure code quality and reliability. 
 
 
+
+
+![alt text](<UML DIAGRAM.png>)
