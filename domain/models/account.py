@@ -8,21 +8,8 @@ class AccountStatus(Enum):
     CLOSED = "closed"
 
 class AccountType(Enum):
-<<<<<<< HEAD
     CHECKING = "checking"
     SAVINGS = "savings"
-=======
-    CHECKING = "CHECKING"
-    SAVINGS = "SAVINGS"    
-
-class TransactionType(Enum):
-    DEPOSIT = auto()
-    WITHDRAWAL = auto()
-    TRANSFER_OUT = auto()
-    TRANSFER_IN = auto()
-    INTEREST = auto()
-    FEE = auto()
->>>>>>> e7c253fdce9c0e15814b588fec9dfaa285d6272f
 
 class Account(ABC):
     def __init__(self, account_id: str, account_type: AccountType, 
