@@ -1,19 +1,20 @@
-
-
 import tkinter as tk
 from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 import tkinter.simpledialog
 from datetime import datetime
 from decimal import Decimal
-from domain.models.account import Account, AccountStatus
-from domain.models.transaction import Transaction, TransactionType
-from domain.services.account_service import AccountService
+from domain.models.account import Account, AccountType, AccountStatus
+from domain.models.transaction import Transaction, TransactionType, DepositTransaction, WithdrawalTransaction, TransferTransaction
+from domain.services.account_service import BankAccountService
 
 class BankApp:
     def __init__(self, root):
         self.root = root
         self.root.title("ZenBank")
+        
+        # Initialize the account service
+        self.account_service = BankAccountService()
         
         # Store accounts and transactions
         self.accounts = []  # List of Account objects
@@ -32,7 +33,7 @@ class BankApp:
     def clear_current_frame(self):
         """Destroy all existing frames to prepare for new screen"""
         for attr in ['login_frame', 'account_management_frame', 
-                    'operations_frame', 'transaction_frame']:
+                    'operations_frame', 'transaction_frame', 'transfer_frame']:
             if hasattr(self, attr):
                 frame = getattr(self, attr)
                 if frame.winfo_exists():
@@ -187,6 +188,9 @@ class BankApp:
             width=15
         ).pack(pady=5)
         
+        # Get all accounts from the service
+        self.accounts = self.account_service._accounts.values()
+        
         if self.accounts:
             tk.Button(
                 button_frame,
@@ -199,44 +203,34 @@ class BankApp:
             ).pack(pady=5)
     
     def create_account(self):
-      """Creates a new account using domain services"""
-      account_type = self.account_type.get()
-    
-    # Ask for account name
-      account_name = tkinter.simpledialog.askstring(
-        "Account Name", 
-        "Enter a name for this account:",
-        parent=self.root
-    )
-    
-      if not account_name:  # User cancelled or entered empty name
-        return
-    
-      try:
-        # Create with zero balance by default
-        account, transaction = AccountService.create_account(
-            account_type=account_type,
-            name=account_name
-        )
+        """Creates a new account using domain services"""
+        account_type = self.account_type.get()
         
-        self.accounts.append(account)
-        self.current_account = account
-        
-        messagebox.showinfo(
-            "Success",
-            f"{account_type.capitalize()} account created!\n"
-            f"Account Name: {account_name}\n"
-            f"Account #: {account.account_id}"
-        )
-        
-        # Offer to make initial deposit
-        if messagebox.askyesno("Initial Deposit", "Make initial deposit now?"):
-            self.show_transaction_screen(default_type="deposit")
-        else:
-            self.show_account_operations_screen()
+        try:
+            # Create account through the service
+            account = self.account_service.create_account(
+                account_type=account_type,
+                initial_balance=0.0,
+                owner_id="user1"  # You might want to get this from login
+            )
             
-      except ValueError as e:
-        messagebox.showerror("Error", str(e))
+            self.current_account = account
+            self.accounts = self.account_service._accounts.values()
+            
+            messagebox.showinfo(
+                "Success",
+                f"{account_type.capitalize()} account created!\n"
+                f"Account #: {account.account_id}"
+            )
+            
+            # Offer to make initial deposit
+            if messagebox.askyesno("Initial Deposit", "Make initial deposit now?"):
+                self.show_transaction_screen(default_type="deposit")
+            else:
+                self.show_account_operations_screen()
+                
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
     
     def show_account_selection(self):
         """Show dialog to select from existing accounts"""
@@ -260,7 +254,7 @@ class BankApp:
         for account in self.accounts:
             account_listbox.insert(
                 tk.END,
-                f"{account.account_type.title()} - {account.account_id} (${account.balance:.2f})"
+                f"{account._account_type.value.capitalize()} - {account.account_id} (${account.balance:.2f})"
             )
         
         account_listbox.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
@@ -268,7 +262,8 @@ class BankApp:
         def on_select():
             selected = account_listbox.curselection()
             if selected:
-                self.current_account = self.accounts[selected[0]]
+                account_id = list(self.account_service._accounts.keys())[selected[0]]
+                self.current_account = self.account_service.get_account(account_id)
                 selection_window.destroy()
                 self.show_account_operations_screen()
         
@@ -302,7 +297,7 @@ class BankApp:
         
         # Account info header
         account_info = (
-            f"Account Type: {self.current_account.account_type}\n"
+            f"Account Type: {self.current_account._account_type.value}\n"
             f"Account Number: {self.current_account.account_id}\n"
             f"Balance: ${self.current_account.balance:.2f}\n"
             f"Status: {self.current_account.status.value}"
@@ -323,6 +318,7 @@ class BankApp:
         operations = [
             ("Deposit", "#4CAF50", lambda: self.show_transaction_screen("deposit")),
             ("Withdraw", "#FF9800", lambda: self.show_transaction_screen("withdrawal")),
+            ("Transfer", "#9C27B0", lambda: self.show_transfer_screen()),
             ("View Transactions", "#2196F3", self.view_transaction_history),
             ("Back", "#9E9E9E", self.show_account_management_screen)
         ]
@@ -337,6 +333,139 @@ class BankApp:
                 font=("Arial", 12),
                 width=20
             ).pack(pady=5, fill=tk.X)
+    
+    def show_transfer_screen(self):
+        """Show transfer between accounts screen"""
+        self.clear_current_frame()
+        
+        self.transfer_frame = tk.Frame(
+            self.root,
+            bg="white",
+            bd=2,
+            relief="flat"
+        )
+        self.canvas.create_window(
+            0, 0,
+            anchor="nw",
+            window=self.transfer_frame,
+            width=self.window_width,
+            height=self.window_height
+        )
+        
+        # Account info
+        tk.Label(
+            self.transfer_frame,
+            text=f"Transfer from: {self.current_account.account_id}",
+            font=("Arial", 12, "bold"),
+            bg="white"
+        ).pack(pady=10)
+        
+        tk.Label(
+            self.transfer_frame,
+            text=f"Current Balance: ${self.current_account.balance:.2f}",
+            font=("Arial", 12),
+            bg="white"
+        ).pack(pady=5)
+        
+        # Destination account
+        dest_frame = tk.Frame(self.transfer_frame, bg="white")
+        dest_frame.pack(pady=10)
+        
+        tk.Label(
+            dest_frame,
+            text="Destination Account ID:",
+            bg="white",
+            font=("Arial", 11)
+        ).grid(row=0, column=0, padx=5, sticky="e")
+        
+        self.dest_account_entry = tk.Entry(
+            dest_frame,
+            font=("Arial", 11),
+            width=20
+        )
+        self.dest_account_entry.grid(row=0, column=1, padx=5, sticky="w")
+        
+        # Amount entry
+        amount_frame = tk.Frame(self.transfer_frame, bg="white")
+        amount_frame.pack(pady=10)
+        
+        tk.Label(
+            amount_frame,
+            text="Amount:",
+            bg="white",
+            font=("Arial", 11)
+        ).grid(row=0, column=0, padx=5, sticky="e")
+        
+        self.transfer_amount_entry = tk.Entry(
+            amount_frame,
+            font=("Arial", 11),
+            width=15
+        )
+        self.transfer_amount_entry.grid(row=0, column=1, padx=5, sticky="w")
+        
+        # Action buttons
+        button_frame = tk.Frame(self.transfer_frame, bg="white")
+        button_frame.pack(pady=20)
+        
+        tk.Button(
+            button_frame,
+            text="Transfer Funds",
+            command=self.process_transfer,
+            bg="#9C27B0",
+            fg="white",
+            font=("Arial", 12),
+            width=20
+        ).pack(pady=5)
+        
+        tk.Button(
+            button_frame,
+            text="Cancel",
+            command=self.show_account_operations_screen,
+            bg="#9E9E9E",
+            fg="white",
+            font=("Arial", 12),
+            width=20
+        ).pack(pady=5)
+    
+    def process_transfer(self):
+        """Process a transfer between accounts"""
+        try:
+            amount_str = self.transfer_amount_entry.get()
+            dest_account_id = self.dest_account_entry.get()
+            
+            # Validate amount
+            try:
+                amount = Decimal(amount_str)
+                if amount <= 0:
+                    raise ValueError("Amount must be positive")
+            except:
+                raise ValueError("Please enter a valid positive amount")
+            
+            # Execute transfer through the service
+            success = self.account_service.transfer(
+                source_account_id=self.current_account.account_id,
+                target_account_id=dest_account_id,
+                amount=float(amount)
+            )
+            
+            if success:
+                # Refresh current account data
+                self.current_account = self.account_service.get_account(self.current_account.account_id)
+                
+                messagebox.showinfo(
+                    "Success",
+                    f"Transfer of ${amount:.2f} completed\n"
+                    f"New Balance: ${self.current_account.balance:.2f}"
+                )
+                self.show_account_operations_screen()
+            else:
+                messagebox.showerror(
+                    "Failed",
+                    "Transfer failed. Check account IDs and balance."
+                )
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Transfer failed: {str(e)}")
     
     def show_transaction_screen(self, default_type="deposit"):
         """Show transaction entry screen"""
@@ -420,24 +549,6 @@ class BankApp:
         )
         self.amount_entry.grid(row=0, column=1, padx=5, sticky="w")
         
-        # Description entry
-        desc_frame = tk.Frame(self.transaction_frame, bg="white")
-        desc_frame.pack(pady=10)
-        
-        tk.Label(
-            desc_frame,
-            text="Description:",
-            bg="white",
-            font=("Arial", 11)
-        ).grid(row=0, column=0, padx=5, sticky="e")
-        
-        self.desc_entry = tk.Entry(
-            desc_frame,
-            font=("Arial", 11),
-            width=30
-        )
-        self.desc_entry.grid(row=0, column=1, padx=5, sticky="w")
-        
         # Action buttons
         button_frame = tk.Frame(self.transaction_frame, bg="white")
         button_frame.pack(pady=20)
@@ -467,7 +578,6 @@ class BankApp:
         try:
             # Get form values
             amount_str = self.amount_entry.get()
-            description = self.desc_entry.get()
             trans_type = self.trans_type.get()
             
             # Validate amount
@@ -478,21 +588,27 @@ class BankApp:
             except:
                 raise ValueError("Please enter a valid positive amount")
             
-            # Create transaction
-            tx_type = TransactionType.DEPOSIT if trans_type == "deposit" else TransactionType.WITHDRAWAL
+            # Create appropriate transaction
+            if trans_type == "deposit":
+                transaction = DepositTransaction(
+                    transaction_id=str(datetime.now().timestamp()),
+                    amount=float(amount),
+                    account_id=self.current_account.account_id
+                )
+            else:  # withdrawal
+                transaction = WithdrawalTransaction(
+                    transaction_id=str(datetime.now().timestamp()),
+                    amount=float(amount),
+                    account_id=self.current_account.account_id
+                )
             
-            transaction = Transaction(
-                transaction_id=f"TX-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                transaction_type=tx_type,
-                amount=float(amount),
-                account_id=self.current_account.account_id,
-                description=description or f"Manual {trans_type.title()}"
-            )
-            
-            # Execute transaction
-            success = AccountService.execute_transaction(self.current_account, transaction)
+            # Execute transaction through the service
+            success = self.account_service.execute_transaction(transaction)
             
             if success:
+                # Refresh current account data
+                self.current_account = self.account_service.get_account(self.current_account.account_id)
+                
                 messagebox.showinfo(
                     "Success",
                     f"{trans_type.title()} of ${amount:.2f} completed\n"
@@ -510,109 +626,10 @@ class BankApp:
     
     def view_transaction_history(self):
         """Display transaction history in a detailed view"""
-        if not hasattr(self.current_account, 'transactions') or not self.current_account.transactions:
-            messagebox.showinfo("No Transactions", "No transactions recorded yet")
-            return
-        
-        history_window = tk.Toplevel(self.root)
-        history_window.title(f"Transaction History - {self.current_account.account_id}")
-        history_window.geometry("800x500")
-        
-        # Header frame
-        header_frame = tk.Frame(history_window)
-        header_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        tk.Label(
-            header_frame,
-            text=f"Account: {self.current_account.account_id} ({self.current_account.account_type.title()})",
-            font=("Arial", 12, "bold")
-        ).pack(anchor="w")
-        
-        tk.Label(
-            header_frame,
-            text=f"Current Balance: ${self.current_account.balance:.2f}",
-            font=("Arial", 12)
-        ).pack(anchor="w")
-        
-        # Create treeview with scrollbars
-        tree_frame = tk.Frame(history_window)
-        tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        columns = ("Date", "Type", "Amount", "Description")
-        tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
-        
-        # Configure columns
-        tree.heading("Date", text="Date/Time")
-        tree.heading("Type", text="Type")
-        tree.heading("Amount", text="Amount")
-        tree.heading("Description", text="Description")
-        
-        tree.column("Date", width=150, anchor="w")
-        tree.column("Type", width=100, anchor="center")
-        tree.column("Amount", width=100, anchor="e")
-        tree.column("Description", width=400, anchor="w")
-        
-        # Add scrollbars
-        y_scroll = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
-        x_scroll = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=tree.xview)
-        tree.configure(yscroll=y_scroll.set, xscroll=x_scroll.set)
-        
-        # Grid layout
-        tree.grid(row=0, column=0, sticky="nsew")
-        y_scroll.grid(row=0, column=1, sticky="ns")
-        x_scroll.grid(row=1, column=0, sticky="ew")
-        
-        # Configure resizing
-        tree_frame.grid_rowconfigure(0, weight=1)
-        tree_frame.grid_columnconfigure(0, weight=1)
-        
-        # Add transactions (newest first)
-        for tx in reversed(self.current_account.transactions):
-            tree.insert("", tk.END, values=(
-                tx.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                tx.transaction_type.name,
-                f"${tx.amount:.2f}",
-                tx.description or ""
-            ))
-        
-        # Add export button
-        tk.Button(
-            history_window,
-            text="Export to CSV",
-            command=self.export_transactions,
-            bg="#2196F3",
-            fg="white"
-        ).pack(pady=10)
-
-    def export_transactions(self):
-        """Export transactions to CSV file"""
-        if not hasattr(self.current_account, 'transactions') or not self.current_account.transactions:
-            messagebox.showerror("Error", "No transactions to export")
-            return
-        
-        from csv import writer
-        from datetime import datetime
-        
-        filename = f"transactions_{self.current_account.account_id}_{datetime.now().strftime('%Y%m%d')}.csv"
-        
-        try:
-            with open(filename, 'w', newline='') as csvfile:
-                csvwriter = writer(csvfile)
-                # Write header
-                csvwriter.writerow(["Date", "Type", "Amount", "Description"])
-                
-                # Write transactions
-                for tx in self.current_account.transactions:
-                    csvwriter.writerow([
-                        tx.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                        tx.transaction_type.name,
-                        tx.amount,
-                        tx.description or ""
-                    ])
-            
-            messagebox.showinfo("Success", f"Transactions exported to {filename}")
-        except Exception as e:
-            messagebox.showerror("Export Failed", f"Error exporting transactions: {str(e)}")
+        # Note: Your current domain model doesn't store transaction history
+        # This would need to be implemented in your service layer
+        messagebox.showinfo("Info", "Transaction history feature would be implemented here")
+        return
 
 if __name__ == "__main__":
     root = tk.Tk()
