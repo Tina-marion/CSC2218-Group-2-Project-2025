@@ -7,6 +7,8 @@ from decimal import Decimal
 from domain.models.account import Account, AccountType, AccountStatus
 from domain.models.transaction import Transaction, TransactionType, DepositTransaction, WithdrawalTransaction, TransferTransaction
 from domain.services.account_service import BankAccountService
+import csv
+import os
 
 class BankApp:
     def __init__(self, root):
@@ -427,6 +429,39 @@ class BankApp:
             width=20
         ).pack(pady=5)
     
+    def save_transaction_to_csv(self, transaction):
+        """Save transaction details to a CSV file"""
+        csv_file = "transactions.csv"
+        file_exists = os.path.isfile(csv_file)
+        
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            
+            # Write header if file doesn't exist
+            if not file_exists:
+                writer.writerow([
+                    "Transaction ID", "Account ID", "Type", 
+                    "Amount", "Date", "Related Account", "Balance After"
+                ])
+            
+            # Prepare data for CSV
+            related_account = ""
+            if isinstance(transaction, TransferTransaction):
+                if transaction.source_account_id == self.current_account.account_id:
+                    related_account = transaction.target_account_id
+                else:
+                    related_account = transaction.source_account_id
+            
+            writer.writerow([
+                transaction.transaction_id,
+                self.current_account.account_id,
+                transaction.__class__.__name__.replace("Transaction", ""),
+                transaction.amount,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                related_account,
+                self.current_account.balance
+            ])
+    
     def process_transfer(self):
         """Process a transfer between accounts"""
         try:
@@ -451,6 +486,15 @@ class BankApp:
             if success:
                 # Refresh current account data
                 self.current_account = self.account_service.get_account(self.current_account.account_id)
+                
+                # Create and save transfer transaction
+                transaction = TransferTransaction(
+                    transaction_id=str(datetime.now().timestamp()),
+                    amount=float(amount),
+                    source_account_id=self.current_account.account_id,
+                    target_account_id=dest_account_id
+                )
+                self.save_transaction_to_csv(transaction)
                 
                 messagebox.showinfo(
                     "Success",
@@ -609,6 +653,9 @@ class BankApp:
                 # Refresh current account data
                 self.current_account = self.account_service.get_account(self.current_account.account_id)
                 
+                # Save the transaction to CSV
+                self.save_transaction_to_csv(transaction)
+                
                 messagebox.showinfo(
                     "Success",
                     f"{trans_type.title()} of ${amount:.2f} completed\n"
@@ -625,11 +672,80 @@ class BankApp:
             messagebox.showerror("Error", f"Transaction failed: {str(e)}")
     
     def view_transaction_history(self):
-        """Display transaction history in a detailed view"""
-        # Note: Your current domain model doesn't store transaction history
-        # This would need to be implemented in your service layer
-        messagebox.showinfo("Info", "Transaction history feature would be implemented here")
-        return
+        """Display transaction history from CSV file"""
+        try:
+            # Create a new window for transactions
+            history_window = tk.Toplevel(self.root)
+            history_window.title("Transaction History")
+            history_window.geometry("800x600")
+            
+            # Create a frame for the treeview and scrollbar
+            frame = tk.Frame(history_window)
+            frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            
+            # Create a treeview with scrollbar
+            tree = ttk.Treeview(frame, columns=("Date", "Type", "Amount", "Related Account", "Balance"), show="headings")
+            vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+            hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
+            tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+            
+            # Grid layout
+            tree.grid(column=0, row=0, sticky='nsew')
+            vsb.grid(column=1, row=0, sticky='ns')
+            hsb.grid(column=0, row=1, sticky='ew')
+            
+            # Configure column headings
+            tree.heading("Date", text="Date")
+            tree.heading("Type", text="Type")
+            tree.heading("Amount", text="Amount")
+            tree.heading("Related Account", text="Related Account")
+            tree.heading("Balance", text="Balance After")
+            
+            # Configure column widths
+            tree.column("Date", width=150)
+            tree.column("Type", width=100)
+            tree.column("Amount", width=100)
+            tree.column("Related Account", width=150)
+            tree.column("Balance", width=100)
+            
+            # Configure grid weights
+            frame.grid_columnconfigure(0, weight=1)
+            frame.grid_rowconfigure(0, weight=1)
+            
+            # Read transactions from CSV
+            try:
+                with open("transactions.csv", mode='r') as file:
+                    reader = csv.DictReader(file)
+                    for row in reader:
+                        if row['Account ID'] == self.current_account.account_id:
+                            tree.insert("", "end", values=(
+                                row['Date'],
+                                row['Type'],
+                                f"${float(row['Amount']):.2f}",
+                                row['Related Account'] if row['Related Account'] else "-",
+                                f"${float(row['Balance After']):.2f}"
+                            ))
+            except FileNotFoundError:
+                tk.Label(
+                    history_window,
+                    text="No transaction history found",
+                    font=("Arial", 12)
+                ).pack(pady=20)
+            
+            # Add a close button
+            close_button = tk.Button(
+                history_window,
+                text="Close",
+                command=history_window.destroy,
+                bg="#9E9E9E",
+                fg="white",
+                font=("Arial", 12),
+                width=15
+            )
+            close_button.pack(pady=10)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to display transactions: {str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()
