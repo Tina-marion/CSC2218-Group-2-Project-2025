@@ -1,23 +1,22 @@
-from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum, auto
-from typing import Optional, List, Dict
+from datetime import datetime
+from typing import Optional, Dict
 import uuid
 from threading import Lock
 from decimal import Decimal
+from dataclasses import dataclass, field
 
-# Enums
+
 class AccountStatus(Enum):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    CLOSED = "CLOSED"
-    FROZEN = "FROZEN"
+    ACTIVE = "active"
+    CLOSED = "closed"
+
 
 class AccountType(Enum):
     CHECKING = "CHECKING"
     SAVINGS = "SAVINGS"
+
 
 class TransactionType(Enum):
     DEPOSIT = auto()
@@ -26,6 +25,7 @@ class TransactionType(Enum):
     TRANSFER_IN = auto()
     INTEREST = auto()
     FEE = auto()
+
 
 # Data class for transaction record
 @dataclass
@@ -38,6 +38,7 @@ class Transaction:
     source_account_id: Optional[str] = None
     destination_account_id: Optional[str] = None
 
+
 # Abstract transaction template
 class AbstractTransaction(ABC):
     def __init__(self, amount: Decimal, account_id: str, description: Optional[str] = None):
@@ -48,7 +49,7 @@ class AbstractTransaction(ABC):
         self.description: str = description or self._default_description()
         self._validate()
 
-    def execute(self, account: Account) -> bool:
+    def execute(self, account: 'Account') -> bool:
         if not self._pre_execute_checks(account):
             return False
         self._apply_balance_change(account)
@@ -61,11 +62,11 @@ class AbstractTransaction(ABC):
         pass
 
     @abstractmethod
-    def _pre_execute_checks(self, account: Account) -> bool:
+    def _pre_execute_checks(self, account: 'Account') -> bool:
         pass
 
     @abstractmethod
-    def _apply_balance_change(self, account: Account) -> None:
+    def _apply_balance_change(self, account: 'Account') -> None:
         pass
 
     @abstractmethod
@@ -76,8 +77,9 @@ class AbstractTransaction(ABC):
     def to_concrete_transaction(self) -> Transaction:
         pass
 
-    def _post_execute_actions(self, account: Account) -> None:
+    def _post_execute_actions(self, account: 'Account') -> None:
         pass
+
 
 # Concrete transactions
 class DepositTransaction(AbstractTransaction):
@@ -85,10 +87,10 @@ class DepositTransaction(AbstractTransaction):
         if self.amount <= Decimal('0'):
             raise ValueError("Deposit amount must be positive")
 
-    def _pre_execute_checks(self, account: Account) -> bool:
+    def _pre_execute_checks(self, account: 'Account') -> bool:
         return account.status == AccountStatus.ACTIVE
 
-    def _apply_balance_change(self, account: Account) -> None:
+    def _apply_balance_change(self, account: 'Account') -> None:
         account._increase_balance(float(self.amount))
 
     def _default_description(self) -> str:
@@ -102,15 +104,16 @@ class DepositTransaction(AbstractTransaction):
             description=self.description
         )
 
+
 class WithdrawalTransaction(AbstractTransaction):
     def _validate(self) -> None:
         if self.amount <= Decimal('0'):
             raise ValueError("Withdrawal amount must be positive")
 
-    def _pre_execute_checks(self, account: Account) -> bool:
+    def _pre_execute_checks(self, account: 'Account') -> bool:
         return account.status == AccountStatus.ACTIVE and account.can_withdraw(float(self.amount))
 
-    def _apply_balance_change(self, account: Account) -> None:
+    def _apply_balance_change(self, account: 'Account') -> None:
         account._decrease_balance(float(self.amount))
 
     def _default_description(self) -> str:
@@ -124,6 +127,7 @@ class WithdrawalTransaction(AbstractTransaction):
             description=self.description
         )
 
+
 class TransferOutTransaction(AbstractTransaction):
     def __init__(self, amount: Decimal, account_id: str,
                  destination_account_id: str, description: Optional[str] = None):
@@ -134,10 +138,10 @@ class TransferOutTransaction(AbstractTransaction):
         if self.amount <= Decimal('0'):
             raise ValueError("Transfer amount must be positive")
 
-    def _pre_execute_checks(self, account: Account) -> bool:
+    def _pre_execute_checks(self, account: 'Account') -> bool:
         return account.status == AccountStatus.ACTIVE and account.can_withdraw(float(self.amount))
 
-    def _apply_balance_change(self, account: Account) -> None:
+    def _apply_balance_change(self, account: 'Account') -> None:
         account._decrease_balance(float(self.amount))
 
     def _default_description(self) -> str:
@@ -153,70 +157,88 @@ class TransferOutTransaction(AbstractTransaction):
             description=self.description
         )
 
+
 # Account entities
 class Account(ABC):
-    def __init__(self, account_type: str, owner_id: Optional[str] = None):
-        self.account_id: str = str(uuid.uuid4())
-        self.account_type: str = account_type
-        self.balance: float = 0.0
-        self.name: str = ""
-        self.status: AccountStatus = AccountStatus.ACTIVE
-        self.creation_date: datetime = datetime.now()
-        self.transactions: List[Transaction] = []
-        self.owner_id: Optional[str] = owner_id
-        self._lock = Lock()
+    def __init__(self, account_id: str, account_type: AccountType, 
+                 balance: float = 0.0, owner_id: Optional[str] = None):
+        self._account_id = account_id
+        self._account_type = account_type
+        self._balance = balance
+        self._status = AccountStatus.ACTIVE
+        self._creation_date = datetime.now()
+        self._owner_id = owner_id
+        self._transactions = []
 
-    def add_transaction(self, txn: Transaction) -> None:
-        with self._lock:
-            self.transactions.append(txn)
+    @property
+    def account_id(self) -> str:
+        return self._account_id
 
-    def process_transaction(self, transaction: AbstractTransaction) -> bool:
-        with self._lock:
-            return transaction.execute(self)
+    @property
+    def balance(self) -> float:
+        return self._balance
 
-    def get_balance(self) -> float:
-        with self._lock:
-            return self.balance
+    @property
+    def status(self) -> AccountStatus:
+        return self._status
 
-    def get_transaction_history(self) -> List[Transaction]:
-        with self._lock:
-            return list(self.transactions)
-
-    def _increase_balance(self, amount: float) -> None:
-        with self._lock:
-            self.balance += amount
-
-    def _decrease_balance(self, amount: float) -> None:
-        with self._lock:
-            self.balance -= amount
+    def deposit(self, amount: float) -> bool:
+        if amount > 0 and self._status == AccountStatus.ACTIVE:
+            self._balance += amount
+            return True
+        return False
 
     @abstractmethod
-    def can_withdraw(self, amount: float) -> bool:
+    def withdraw(self, amount: float) -> bool:
+        """ Abstract withdrawal method for account-specific behavior"""
         pass
 
+    def can_withdraw(self, amount: float) -> bool:
+        """ Additional check for transfer operations """
+        return self._status == AccountStatus.ACTIVE and amount > 0
+
+    def close_account(self) -> None:
+        self._status = AccountStatus.CLOSED
+
+    def _increase_balance(self, amount: float) -> None:
+        self._balance += amount
+
+    def _decrease_balance(self, amount: float) -> None:
+        if self._balance >= amount:
+            self._balance -= amount
+
+    def add_transaction(self, transaction: Transaction) -> None:
+        self._transactions.append(transaction)
+
     def __str__(self) -> str:
-        return (f"Account ID: {self.account_id}\n"
-                f"Type: {self.account_type}\n"
-                f"Status: {self.status.value}\n"
-                f"Balance: ${self.get_balance():.2f}\n"
-                f"Created on: {self.creation_date.strftime('%Y-%m-%d %H:%M:%S')}")
+        return f"{self._account_type.value.capitalize()} Account {self._account_id}: Balance ${self._balance:.2f}"
+
 
 class CheckingAccount(Account):
-    def __init__(self, owner_id: Optional[str] = None):
-        super().__init__("CHECKING", owner_id)
+    """ Account type with overdraft protection """
+    def __init__(self, account_id: str, balance: float = 0.0, owner_id: Optional[str] = None):
+        super().__init__(account_id, AccountType.CHECKING, balance, owner_id)
+        self._overdraft_limit = 100.00
 
-    def can_withdraw(self, amount: float) -> bool:
-        return self.status == AccountStatus.ACTIVE and self.get_balance() >= amount
+    def withdraw(self, amount: float) -> bool:
+        if self.can_withdraw(amount) and (self._balance - amount) >= -self._overdraft_limit:
+            self._balance -= amount
+            return True
+        return False
+
 
 class SavingsAccount(Account):
-    MIN_BALANCE: float = 100.0
+    """ Account type with no overdraft """
+    def __init__(self, account_id: str, balance: float = 0.0, owner_id: Optional[str] = None):
+        super().__init__(account_id, AccountType.SAVINGS, balance, owner_id)
+        self._minimum_balance = 10.00  # Minimum balance requirement
 
-    def __init__(self, owner_id: Optional[str] = None):
-        super().__init__("SAVINGS", owner_id)
+    def withdraw(self, amount: float) -> bool:
+        if self.can_withdraw(amount) and (self.balance - amount) >= self._minimum_balance:
+            self._balance -= amount
+            return True
+        return False
 
-    def can_withdraw(self, amount: float) -> bool:
-        return (self.status == AccountStatus.ACTIVE and
-                (self.get_balance() - amount) >= self.MIN_BALANCE)
 
 # Account repository interface
 class AccountRepository(ABC):
@@ -227,6 +249,7 @@ class AccountRepository(ABC):
     @abstractmethod
     def update_account(self, account: Account) -> None:
         pass
+
 
 # In-memory account repository
 class InMemoryAccountRepository(AccountRepository):
@@ -241,6 +264,7 @@ class InMemoryAccountRepository(AccountRepository):
 
     def update_account(self, account: Account) -> None:
         self.accounts[account.account_id] = account
+
 
 # Transfer service
 class TransferService:

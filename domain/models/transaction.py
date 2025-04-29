@@ -1,22 +1,18 @@
+from enum import Enum
 from datetime import datetime
-from enum import Enum, auto
+from abc import ABC, abstractmethod
 from typing import Optional
 from dataclasses import dataclass, field
-from threading import Lock
 import uuid
-
+from threading import Lock
 
 class TransactionType(Enum):
-    """Enum representing different types of transactions"""
-    DEPOSIT = auto()
-    WITHDRAWAL = auto()
-    TRANSFER = auto()
-    INTEREST = auto()
-    FEE = auto()
-
+    DEPOSIT = "deposit"
+    WITHDRAW = "withdraw"
+    TRANSFER = "transfer"
 
 @dataclass
-class Transaction:
+class Transaction(ABC):
     transaction_type: TransactionType
     amount: float
     account_id: str
@@ -28,25 +24,28 @@ class Transaction:
     is_interest: bool = False  # Helps explicitly mark interest transactions
     _lock: Lock = field(default_factory=Lock, init=False, repr=False)
 
-    def __post_init__(self):
-        """Validation after initialization"""
-        if self.amount <= 0:
-            raise ValueError("Transaction amount must be positive")
+    @property
+    def transaction_id(self) -> str:
+        return self._transaction_id
+
+    @property
+    def amount(self) -> float:
+        return self._amount
+
+    @property
+    def is_completed(self) -> bool:
+        return self._completed
 
     def is_debit(self) -> bool:
         """Returns True if this transaction reduces the account balance"""
         return self.transaction_type in (
-            TransactionType.WITHDRAWAL,
-            TransactionType.FEE,
+            TransactionType.WITHDRAW,
             TransactionType.TRANSFER
         )
 
     def is_credit(self) -> bool:
         """Returns True if this transaction increases the account balance"""
-        return self.transaction_type in (
-            TransactionType.DEPOSIT,
-            TransactionType.INTEREST
-        )
+        return self.transaction_type == TransactionType.DEPOSIT
 
     def get_signed_amount(self) -> float:
         """Returns the amount with proper sign (+/-) based on transaction type"""
@@ -90,3 +89,57 @@ class Transaction:
                 f"[{self.transaction_id[:8]}] {direction} ${self.amount:.2f} "
                 f"on Account: {self.account_id}{related} - "
                 f"{self.transaction_type.name}{interest_flag}")
+    
+    @abstractmethod
+    def execute(self, account_service) -> bool:
+        pass
+
+
+class DepositTransaction(Transaction):
+    """ Concrete deposit transaction"""
+    def __init__(self, amount: float, account_id: str):
+        super().__init__(TransactionType.DEPOSIT, amount, account_id)
+
+    def execute(self, account_service) -> bool:
+        account = account_service.get_account(self.account_id)
+        if account and account.deposit(self.amount):
+            self._completed = True
+            return True
+        return False
+
+
+class WithdrawalTransaction(Transaction):
+    """ Concrete withdrawal transaction"""
+    def __init__(self, amount: float, account_id: str):
+        super().__init__(TransactionType.WITHDRAW, amount, account_id)
+
+    def execute(self, account_service) -> bool:
+        account = account_service.get_account(self.account_id)
+        if account and account.withdraw(self.amount):
+            self._completed = True
+            return True
+        return False
+
+
+class TransferTransaction(Transaction):
+    """ Transfer transaction that handles both accounts atomically"""
+    def __init__(self, amount: float, source_account_id: str, destination_account_id: str):
+        super().__init__(TransactionType.TRANSFER, amount, source_account_id)
+        self.destination_account_id = destination_account_id
+
+    def execute(self, account_service) -> bool:
+        source = account_service.get_account(self.account_id)
+        destination = account_service.get_account(self.destination_account_id)
+
+        if not source or not destination:
+            return False
+
+        # Atomic transfer logic
+        if source.prepare_for_transfer(self.amount):
+            if destination.complete_transfer(self.amount):
+                self._completed = True
+                return True
+            else:
+                # Rollback if deposit fails
+                source.complete_transfer(self.amount)
+        return False
