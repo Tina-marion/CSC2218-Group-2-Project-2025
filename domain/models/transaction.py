@@ -24,8 +24,8 @@ class Transaction:
     timestamp: datetime = field(default_factory=datetime.now)
     description: Optional[str] = None
     related_account: Optional[str] = None
-
-    # Lock for any future thread-safe operations
+    tag: Optional[str] = None  # For extra classification (e.g., "ATM", "MonthlyInterest")
+    is_interest: bool = False  # Helps explicitly mark interest transactions
     _lock: Lock = field(default_factory=Lock, init=False, repr=False)
 
     def __post_init__(self):
@@ -61,7 +61,9 @@ class Transaction:
             'account_id': self.account_id,
             'timestamp': self.timestamp.isoformat(),
             'description': self.description,
-            'related_account': self.related_account
+            'related_account': self.related_account,
+            'tag': self.tag,
+            'is_interest': self.is_interest
         }
 
     @classmethod
@@ -74,13 +76,17 @@ class Transaction:
             account_id=data['account_id'],
             timestamp=datetime.fromisoformat(data['timestamp']),
             description=data.get('description'),
-            related_account=data.get('related_account')
+            related_account=data.get('related_account'),
+            tag=data.get('tag'),
+            is_interest=data.get('is_interest', False)
         )
 
     def __str__(self) -> str:
         """Human-readable representation"""
         direction = "Credit" if self.is_credit() else "Debit"
         related = f" -> {self.related_account}" if self.related_account else ""
+        interest_flag = " [Interest]" if self.is_interest else ""
         return (f"{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')} "
-                f"[{self.transaction_id[:8]}] {direction} "
-                f"${self.amount:.2f} on Account: {self.account_id}{related} - {self.transaction_type.name}")
+                f"[{self.transaction_id[:8]}] {direction} ${self.amount:.2f} "
+                f"on Account: {self.account_id}{related} - "
+                f"{self.transaction_type.name}{interest_flag}")
