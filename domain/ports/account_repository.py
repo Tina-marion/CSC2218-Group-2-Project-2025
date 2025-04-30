@@ -1,4 +1,4 @@
-# domain/ports/account_repository.py
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from domain.models.account import Account

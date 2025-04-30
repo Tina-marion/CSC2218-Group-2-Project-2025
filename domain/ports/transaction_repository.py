@@ -8,6 +8,11 @@ class TransactionRepository(ABC):
     @abstractmethod
     def create(self, transaction: Transaction) -> Transaction:
         pass
+
+    @abstractmethod
+    def save_transaction(self, transaction: Transaction) -> Transaction:  # ✅ Return Transaction, not str
+        pass
+    
     
     @abstractmethod
     def find_by_account_id(self, account_id: int) -> List[Transaction]:
