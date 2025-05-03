@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from domain.models.account import Account, CheckingAccount, SavingsAccount
-from domain.models.transaction import Transaction, TransferTransaction
+from domain.entities.account import Account, CheckingAccount, SavingsAccount
+from domain.entities.transaction import Transaction, TransferTransaction
 from typing import Dict, Optional
 import uuid
 

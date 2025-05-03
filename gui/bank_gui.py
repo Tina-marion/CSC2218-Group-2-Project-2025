@@ -4,8 +4,8 @@ from PIL import Image, ImageTk
 import tkinter.simpledialog
 from datetime import datetime
 from decimal import Decimal
-from domain.models.account import Account, AccountType, AccountStatus
-from domain.models.transaction import Transaction, TransactionType, DepositTransaction, WithdrawalTransaction, TransferTransaction
+from domain.entities.account import Account, AccountType, AccountStatus
+from domain.entities.transaction import Transaction, TransactionType, DepositTransaction, WithdrawalTransaction, TransferTransaction
 from domain.services.account_service import BankAccountService
 import csv
 import os

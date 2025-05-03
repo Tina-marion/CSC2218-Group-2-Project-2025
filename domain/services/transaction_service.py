@@ -1,7 +1,7 @@
 # domain/services/transaction_service.py
 from typing import List
-from domain.models.account import Account
-from domain.models.transaction import Transaction, TransactionType
+from domain.entities.account import Account
+from domain.entities.transaction import Transaction, TransactionType
 from domain.ports.account_repository import AccountRepository
 from domain.ports.transaction_repository import TransactionRepository
 

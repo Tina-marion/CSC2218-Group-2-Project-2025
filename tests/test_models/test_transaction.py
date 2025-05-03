@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi.testclient import TestClient
 from main import app  # Assuming your FastAPI app is in the main.py file
-from domain.models.transaction import Transaction, TransactionType
+from domain.entities.transaction import Transaction, TransactionType
 
 client = TestClient(app)
 

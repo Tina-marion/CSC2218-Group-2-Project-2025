@@ -5,8 +5,8 @@ Exposes the core domain entities for import like:
 from models import Account, Transaction
 """
 
-from .account import Account,AccountStatus
-from domain.models.transaction import Transaction, TransactionType
+from ..entities.account import Account,AccountStatus
+from domain.entities.transaction import Transaction, TransactionType
 from domain.services.account_service import AccountService
 
 __all__ = [
