@@ -1,7 +1,7 @@
 # domain/ports/transaction_repository.py
 from abc import ABC, abstractmethod
 from typing import List
-from domain.models.transaction import Transaction
+from domain.entities.transaction import Transaction
 
 class TransactionRepository(ABC):
     """Interface for transaction persistence"""
