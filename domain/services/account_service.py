@@ -4,6 +4,7 @@ from domain.models.transaction import Transaction, TransferTransaction
 from typing import Dict, Optional
 import uuid
 from domain.services.fund_transfer_service import FundTransferService
+
 class AccountService(ABC):
     @abstractmethod
     def create_account(self, account_type: str, initial_balance: float = 0.0, 
@@ -39,6 +40,7 @@ class BankAccountService(AccountService):
     
     def __init__(self):
         self._accounts: Dict[str, Account] = {}
+        self.transfer_service = FundTransferService(self)
         
     def create_account(self, account_type: str, initial_balance: float = 0.0, 
                        owner_id: Optional[str] = None) -> Account:
@@ -49,14 +51,6 @@ class BankAccountService(AccountService):
             account = SavingsAccount(account_id, initial_balance, owner_id)
         self._accounts[account_id] = account
         return account
-    
-    def __init__(self):
-        self._accounts: Dict[str, Account] = {}
-        self.transfer_service = FundTransferService(self)
-
-    def transfer(self, source_account_id: str, target_account_id: str, amount: float) -> bool:
-        """Delegate transfer to FundTransferService"""
-        return self.transfer_service.transfer_funds(source_account_id, target_account_id, amount)
 
     def get_account(self, account_id: str) -> Optional[Account]:
         return self._accounts.get(account_id)
@@ -74,24 +68,8 @@ class BankAccountService(AccountService):
         return False
 
     def transfer(self, source_account_id: str, target_account_id: str, amount: float) -> bool:
-        """Atomic transfer implementation"""
-        if source_account_id == target_account_id:
-            return False
-            
-        source = self.get_account(source_account_id)
-        target = self.get_account(target_account_id)
-        
-        if not source or not target:
-            return False
-            
-        # Create and execute transfer transaction
-        transaction = TransferTransaction(
-            amount=amount,
-            source_account_id=source_account_id,
-            destination_account_id=target_account_id
-        )
-        
-        return self.execute_transaction(transaction)
+        """Delegate transfer to FundTransferService"""
+        return self.transfer_service.transfer_funds(source_account_id, target_account_id, amount)
 
     def get_account_balance(self, account_id: str) -> Optional[float]:
         account = self.get_account(account_id)

@@ -30,12 +30,6 @@ class Transaction(ABC):
         self._transaction_id = self.transaction_id
         self._completed = False
 
-    def execute(self, account_service) -> bool:
-        result = super().execute(account_service) if hasattr(super(), 'execute') else False
-        if result:
-            NotificationService().notify(self)  # Trigger notification on successful execution
-        return result
-
     @property
     def transaction_id(self) -> str:
         return self._transaction_id
@@ -99,7 +93,15 @@ class Transaction(ABC):
                 f"on Account: {self.account_id}{related} - "
                 f"{self.transaction_type.name}{interest_flag}")
 
-    
+    @abstractmethod
+    def execute(self, account_service) -> bool:
+        pass
+
+    def execute(self, account_service) -> bool:  # Override abstract method with notification
+        result = super().execute(account_service) if hasattr(super(), 'execute') else False
+        if result:
+            NotificationService().notify(self)  # Trigger notification on success
+        return result
 
 class DepositTransaction(Transaction):
     """Concrete deposit transaction"""

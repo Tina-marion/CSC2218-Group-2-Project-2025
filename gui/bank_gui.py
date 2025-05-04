@@ -7,6 +7,7 @@ from decimal import Decimal
 from domain.models.account import Account, AccountType, AccountStatus
 from domain.models.transaction import Transaction, TransactionType, DepositTransaction, WithdrawalTransaction, TransferTransaction
 from domain.services.account_service import BankAccountService
+from domain.services.logging_service import LoggingService
 import csv
 import os
 
@@ -15,8 +16,8 @@ class BankApp:
         self.root = root
         self.root.title("ZenBank")
         
-        # Initialize the account service
-        self.account_service = BankAccountService()
+        # Initialize the account service with logging
+        self.account_service = LoggingService(BankAccountService())
         
         # Store accounts and transactions
         self.accounts = []  # List of Account objects

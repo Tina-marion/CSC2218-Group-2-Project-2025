@@ -1,4 +1,4 @@
-from domain.models.transaction import Transaction, TransferTransaction
+from domain.models.transaction import TransferTransaction
 from domain.models.account import Account
 from domain.services.account_service import BankAccountService
 from datetime import datetime
@@ -32,6 +32,3 @@ class FundTransferService:
                 # Rollback withdrawal if deposit fails
                 source.deposit(amount)
         return False
-
-
-
