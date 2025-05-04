@@ -36,7 +36,7 @@ class BankApp:
     def clear_current_frame(self):
         """Destroy all existing frames to prepare for new screen"""
         for attr in ['login_frame', 'account_management_frame', 
-                    'operations_frame', 'transaction_frame', 'transfer_frame']:
+                    'operations_frame', 'transaction_frame', 'transfer_frame', 'statement_frame']:
             if hasattr(self, attr):
                 frame = getattr(self, attr)
                 if frame.winfo_exists():
@@ -294,7 +294,8 @@ class BankApp:
             f"Account Type: {self.current_account._account_type.value}\n"
             f"Account Number: {self.current_account.account_id}\n"
             f"Balance: ${self.current_account.balance:.2f}\n"
-            f"Status: {self.current_account.status.value}"
+            f"Status: {self.current_account.status.value}\n"
+            f"Interest Accrued: ${self.current_account.interest_accrued:.2f}"
         )
         
         tk.Label(
@@ -312,6 +313,10 @@ class BankApp:
             ("Deposit", "#4CAF50", lambda: self.show_transaction_screen("deposit")),
             ("Withdraw", "#FF9800", lambda: self.show_transaction_screen("withdrawal")),
             ("Transfer", "#9C27B0", lambda: self.show_transfer_screen()),
+            ("Apply Interest", "#2196F3", self.apply_interest),
+            ("Reset Daily Limits", "#FF5722", self.reset_daily_limits),
+            ("Reset Monthly Limits", "#795548", self.reset_monthly_limits),
+            ("Generate Statement", "#9E9E9E", self.generate_statement),
             ("View Transactions", "#2196F3", self.view_transaction_history),
             ("Back", "#9E9E9E", self.show_account_management_screen)
         ]
@@ -327,6 +332,48 @@ class BankApp:
                 width=20
             ).pack(pady=5, fill=tk.X)
     
+    def apply_interest(self):
+        """Apply interest to the current account."""
+        try:
+            if self.account_service.apply_interest_to_account(self.current_account.account_id):
+                self.current_account = self.account_service.get_account(self.current_account.account_id)
+                messagebox.showinfo("Success", f"Interest applied. New Balance: ${self.current_account.balance:.2f}")
+            else:
+                messagebox.showwarning("Warning", "Interest application failed or not applicable.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def reset_daily_limits(self):
+        """Reset daily limits for all accounts."""
+        try:
+            self.account_service.reset_daily_limits()
+            messagebox.showinfo("Success", "Daily limits reset successfully.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def reset_monthly_limits(self):
+        """Reset monthly limits for all accounts."""
+        try:
+            self.account_service.reset_monthly_limits()
+            messagebox.showinfo("Success", "Monthly limits reset successfully.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def generate_statement(self):
+        """Generate a CSV statement for the current account."""
+        try:
+            start_date = datetime.strptime(tkinter.simpledialog.askstring("Input", "Enter start date (YYYY-MM-DD)"), "%Y-%m-%d")
+            end_date = datetime.strptime(tkinter.simpledialog.askstring("Input", "Enter end date (YYYY-MM-DD)"), "%Y-%m-%d")
+            if start_date > end_date:
+                raise ValueError("Start date must be before end date.")
+
+            filename = self.account_service.generate_statement(self.current_account.account_id, start_date, end_date)
+            messagebox.showinfo("Success", f"Statement generated as {filename}. Open with a spreadsheet application.")
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to generate statement: {str(e)}")
+
     def show_transfer_screen(self):
         """Show transfer between accounts screen"""
         self.clear_current_frame()

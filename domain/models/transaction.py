@@ -97,12 +97,6 @@ class Transaction(ABC):
     def execute(self, account_service) -> bool:
         pass
 
-    def execute(self, account_service) -> bool:  # Override abstract method with notification
-        result = super().execute(account_service) if hasattr(super(), 'execute') else False
-        if result:
-            NotificationService().notify(self)  # Trigger notification on success
-        return result
-
 class DepositTransaction(Transaction):
     """Concrete deposit transaction"""
     def __init__(self, amount: float, account_id: str):
@@ -132,6 +126,7 @@ class TransferTransaction(Transaction):
     def __init__(self, amount: float, source_account_id: str, destination_account_id: str):
         super().__init__(TransactionType.TRANSFER, amount, source_account_id)
         self.destination_account_id = destination_account_id
+        self.related_account = destination_account_id
 
     def execute(self, account_service) -> bool:
         source = account_service.get_account(self.account_id)

@@ -1,8 +1,9 @@
+from datetime import datetime
 import logging
-from typing import Optional
-from domain.services.account_service import BankAccountService
+from domain.services.account_service import BankAccountService, AccountService
 from domain.models.transaction import Transaction
 from domain.models.account import Account
+from typing import Dict, Optional
 
 logging.basicConfig(
     filename='bank_operations.log',
@@ -10,7 +11,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-class LoggingService:
+class LoggingService(AccountService):
     def __init__(self, account_service: BankAccountService):
         self.account_service = account_service
         self.logger = logging.getLogger("LoggingService")
@@ -42,3 +43,23 @@ class LoggingService:
     def execute_transaction(self, transaction: Transaction) -> bool:
         self.logger.info(f"Executing transaction {transaction.transaction_id} of type {transaction.transaction_type.value}")
         return self.account_service.execute_transaction(transaction)
+
+    def apply_interest_to_account(self, account_id: str) -> bool:
+        self.logger.info(f"Applying interest to account {account_id}")
+        return self.account_service.apply_interest_to_account(account_id)
+
+    def apply_interest_batch(self, account_ids: list[str]) -> int:
+        self.logger.info(f"Applying interest batch to accounts {account_ids}")
+        return self.account_service.apply_interest_batch(account_ids)
+
+    def generate_statement(self, account_id: str, start_date: datetime, end_date: datetime) -> str:
+        self.logger.info(f"Generating statement for account {account_id} from {start_date} to {end_date}")
+        return self.account_service.generate_statement(account_id, start_date, end_date)
+
+    def reset_daily_limits(self):
+        self.logger.info("Resetting daily limits for all accounts")
+        self.account_service.reset_daily_limits()
+
+    def reset_monthly_limits(self):
+        self.logger.info("Resetting monthly limits for all accounts")
+        self.account_service.reset_monthly_limits()
