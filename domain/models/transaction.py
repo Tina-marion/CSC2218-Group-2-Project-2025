@@ -5,6 +5,7 @@ from typing import Optional
 from dataclasses import dataclass, field
 import uuid
 from threading import Lock
+from domain.services.notification_service import NotificationService
 
 class TransactionType(Enum):
     DEPOSIT = "deposit"
@@ -20,9 +21,20 @@ class Transaction(ABC):
     timestamp: datetime = field(default_factory=datetime.now)
     description: Optional[str] = None
     related_account: Optional[str] = None
-    tag: Optional[str] = None  # For extra classification (e.g., "ATM", "MonthlyInterest")
-    is_interest: bool = False  # Helps explicitly mark interest transactions
+    tag: Optional[str] = None
+    is_interest: bool = False
     _lock: Lock = field(default_factory=Lock, init=False, repr=False)
+
+    def __post_init__(self):
+        self._amount = self.amount
+        self._transaction_id = self.transaction_id
+        self._completed = False
+
+    def execute(self, account_service) -> bool:
+        result = super().execute(account_service) if hasattr(super(), 'execute') else False
+        if result:
+            NotificationService().notify(self)  # Trigger notification on successful execution
+        return result
 
     @property
     def transaction_id(self) -> str:
@@ -38,10 +50,7 @@ class Transaction(ABC):
 
     def is_debit(self) -> bool:
         """Returns True if this transaction reduces the account balance"""
-        return self.transaction_type in (
-            TransactionType.WITHDRAW,
-            TransactionType.TRANSFER
-        )
+        return self.transaction_type in (TransactionType.WITHDRAW, TransactionType.TRANSFER)
 
     def is_credit(self) -> bool:
         """Returns True if this transaction increases the account balance"""
@@ -89,14 +98,11 @@ class Transaction(ABC):
                 f"[{self.transaction_id[:8]}] {direction} ${self.amount:.2f} "
                 f"on Account: {self.account_id}{related} - "
                 f"{self.transaction_type.name}{interest_flag}")
-    
-    @abstractmethod
-    def execute(self, account_service) -> bool:
-        pass
 
+    
 
 class DepositTransaction(Transaction):
-    """ Concrete deposit transaction"""
+    """Concrete deposit transaction"""
     def __init__(self, amount: float, account_id: str):
         super().__init__(TransactionType.DEPOSIT, amount, account_id)
 
@@ -107,9 +113,8 @@ class DepositTransaction(Transaction):
             return True
         return False
 
-
 class WithdrawalTransaction(Transaction):
-    """ Concrete withdrawal transaction"""
+    """Concrete withdrawal transaction"""
     def __init__(self, amount: float, account_id: str):
         super().__init__(TransactionType.WITHDRAW, amount, account_id)
 
@@ -120,9 +125,8 @@ class WithdrawalTransaction(Transaction):
             return True
         return False
 
-
 class TransferTransaction(Transaction):
-    """ Transfer transaction that handles both accounts atomically"""
+    """Transfer transaction that handles both accounts atomically"""
     def __init__(self, amount: float, source_account_id: str, destination_account_id: str):
         super().__init__(TransactionType.TRANSFER, amount, source_account_id)
         self.destination_account_id = destination_account_id
@@ -134,12 +138,10 @@ class TransferTransaction(Transaction):
         if not source or not destination:
             return False
 
-        # Atomic transfer logic
         if source.prepare_for_transfer(self.amount):
             if destination.complete_transfer(self.amount):
                 self._completed = True
                 return True
             else:
-                # Rollback if deposit fails
                 source.complete_transfer(self.amount)
         return False
