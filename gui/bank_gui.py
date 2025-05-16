@@ -7,6 +7,7 @@ from decimal import Decimal
 from domain.entities.account import Account, AccountType, AccountStatus
 from domain.entities.transaction import Transaction, TransactionType, DepositTransaction, WithdrawalTransaction, TransferTransaction
 from domain.services.account_service import BankAccountService
+from domain.services.logging_service import LoggingService
 import csv
 import os
 
@@ -15,8 +16,8 @@ class BankApp:
         self.root = root
         self.root.title("ZenBank")
         
-        # Initialize the account service
-        self.account_service = BankAccountService()
+        # Initialize the account service with logging
+        self.account_service = LoggingService(BankAccountService())
         
         # Store accounts and transactions
         self.accounts = []  # List of Account objects
@@ -35,7 +36,7 @@ class BankApp:
     def clear_current_frame(self):
         """Destroy all existing frames to prepare for new screen"""
         for attr in ['login_frame', 'account_management_frame', 
-                    'operations_frame', 'transaction_frame', 'transfer_frame']:
+                    'operations_frame', 'transaction_frame', 'transfer_frame', 'statement_frame']:
             if hasattr(self, attr):
                 frame = getattr(self, attr)
                 if frame.winfo_exists():
@@ -72,7 +73,6 @@ class BankApp:
             window=self.login_frame
         )
         
-        # Login widgets
         tk.Label(
             self.login_frame, 
             text="ZenBank Login", 
@@ -103,7 +103,6 @@ class BankApp:
         )
         self.login_button.grid(row=3, column=0, columnspan=2, pady=10)
         
-        # Bind Enter key to login
         self.root.bind('<Return>', lambda event: self.perform_login())
     
     def perform_login(self):
@@ -136,7 +135,6 @@ class BankApp:
             height=self.window_height
         )
         
-        # Title
         tk.Label(
             self.account_management_frame,
             text="Account Management",
@@ -145,7 +143,6 @@ class BankApp:
             fg="black"
         ).pack(pady=(20, 15))
         
-        # Account Type selection
         account_type_frame = tk.Frame(self.account_management_frame, bg="white")
         account_type_frame.pack(pady=10)
         
@@ -176,7 +173,6 @@ class BankApp:
             font=("Arial", 11)
         ).pack(anchor="w", pady=5)
         
-        # Action buttons
         button_frame = tk.Frame(self.account_management_frame, bg="white")
         button_frame.pack(pady=20)
         
@@ -190,8 +186,7 @@ class BankApp:
             width=15
         ).pack(pady=5)
         
-        # Get all accounts from the service
-        self.accounts = self.account_service._accounts.values()
+        self.accounts = list(self.account_service._accounts.values())
         
         if self.accounts:
             tk.Button(
@@ -209,15 +204,14 @@ class BankApp:
         account_type = self.account_type.get()
         
         try:
-            # Create account through the service
             account = self.account_service.create_account(
                 account_type=account_type,
                 initial_balance=0.0,
-                owner_id="user1"  # You might want to get this from login
+                owner_id="user1"
             )
             
             self.current_account = account
-            self.accounts = self.account_service._accounts.values()
+            self.accounts = list(self.account_service._accounts.values())
             
             messagebox.showinfo(
                 "Success",
@@ -225,7 +219,6 @@ class BankApp:
                 f"Account #: {account.account_id}"
             )
             
-            # Offer to make initial deposit
             if messagebox.askyesno("Initial Deposit", "Make initial deposit now?"):
                 self.show_transaction_screen(default_type="deposit")
             else:
@@ -297,12 +290,12 @@ class BankApp:
             height=self.window_height
         )
         
-        # Account info header
         account_info = (
             f"Account Type: {self.current_account._account_type.value}\n"
             f"Account Number: {self.current_account.account_id}\n"
             f"Balance: ${self.current_account.balance:.2f}\n"
-            f"Status: {self.current_account.status.value}"
+            f"Status: {self.current_account.status.value}\n"
+            f"Interest Accrued: ${self.current_account.interest_accrued:.2f}"
         )
         
         tk.Label(
@@ -313,7 +306,6 @@ class BankApp:
             justify=tk.LEFT
         ).pack(pady=20)
         
-        # Operations buttons
         button_frame = tk.Frame(self.operations_frame, bg="white")
         button_frame.pack(pady=10)
         
@@ -321,6 +313,10 @@ class BankApp:
             ("Deposit", "#4CAF50", lambda: self.show_transaction_screen("deposit")),
             ("Withdraw", "#FF9800", lambda: self.show_transaction_screen("withdrawal")),
             ("Transfer", "#9C27B0", lambda: self.show_transfer_screen()),
+            ("Apply Interest", "#2196F3", self.apply_interest),
+            ("Reset Daily Limits", "#FF5722", self.reset_daily_limits),
+            ("Reset Monthly Limits", "#795548", self.reset_monthly_limits),
+            ("Generate Statement", "#9E9E9E", self.generate_statement),
             ("View Transactions", "#2196F3", self.view_transaction_history),
             ("Back", "#9E9E9E", self.show_account_management_screen)
         ]
@@ -336,6 +332,48 @@ class BankApp:
                 width=20
             ).pack(pady=5, fill=tk.X)
     
+    def apply_interest(self):
+        """Apply interest to the current account."""
+        try:
+            if self.account_service.apply_interest_to_account(self.current_account.account_id):
+                self.current_account = self.account_service.get_account(self.current_account.account_id)
+                messagebox.showinfo("Success", f"Interest applied. New Balance: ${self.current_account.balance:.2f}")
+            else:
+                messagebox.showwarning("Warning", "Interest application failed or not applicable.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def reset_daily_limits(self):
+        """Reset daily limits for all accounts."""
+        try:
+            self.account_service.reset_daily_limits()
+            messagebox.showinfo("Success", "Daily limits reset successfully.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def reset_monthly_limits(self):
+        """Reset monthly limits for all accounts."""
+        try:
+            self.account_service.reset_monthly_limits()
+            messagebox.showinfo("Success", "Monthly limits reset successfully.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def generate_statement(self):
+        """Generate a CSV statement for the current account."""
+        try:
+            start_date = datetime.strptime(tkinter.simpledialog.askstring("Input", "Enter start date (YYYY-MM-DD)"), "%Y-%m-%d")
+            end_date = datetime.strptime(tkinter.simpledialog.askstring("Input", "Enter end date (YYYY-MM-DD)"), "%Y-%m-%d")
+            if start_date > end_date:
+                raise ValueError("Start date must be before end date.")
+
+            filename = self.account_service.generate_statement(self.current_account.account_id, start_date, end_date)
+            messagebox.showinfo("Success", f"Statement generated as {filename}. Open with a spreadsheet application.")
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to generate statement: {str(e)}")
+
     def show_transfer_screen(self):
         """Show transfer between accounts screen"""
         self.clear_current_frame()
@@ -354,7 +392,6 @@ class BankApp:
             height=self.window_height
         )
         
-        # Account info
         tk.Label(
             self.transfer_frame,
             text=f"Transfer from: {self.current_account.account_id}",
@@ -369,7 +406,6 @@ class BankApp:
             bg="white"
         ).pack(pady=5)
         
-        # Destination account
         dest_frame = tk.Frame(self.transfer_frame, bg="white")
         dest_frame.pack(pady=10)
         
@@ -387,7 +423,6 @@ class BankApp:
         )
         self.dest_account_entry.grid(row=0, column=1, padx=5, sticky="w")
         
-        # Amount entry
         amount_frame = tk.Frame(self.transfer_frame, bg="white")
         amount_frame.pack(pady=10)
         
@@ -405,7 +440,6 @@ class BankApp:
         )
         self.transfer_amount_entry.grid(row=0, column=1, padx=5, sticky="w")
         
-        # Action buttons
         button_frame = tk.Frame(self.transfer_frame, bg="white")
         button_frame.pack(pady=20)
         
@@ -437,27 +471,22 @@ class BankApp:
         with open(csv_file, mode='a', newline='') as file:
             writer = csv.writer(file)
             
-            # Write header if file doesn't exist
             if not file_exists:
                 writer.writerow([
                     "Transaction ID", "Account ID", "Type", 
                     "Amount", "Date", "Related Account", "Balance After"
                 ])
             
-            # Prepare data for CSV
             related_account = ""
             if isinstance(transaction, TransferTransaction):
-                if transaction.source_account_id == self.current_account.account_id:
-                    related_account = transaction.target_account_id
-                else:
-                    related_account = transaction.source_account_id
+                related_account = transaction.destination_account_id
             
             writer.writerow([
                 transaction.transaction_id,
-                self.current_account.account_id,
-                transaction.__class__.__name__.replace("Transaction", ""),
+                transaction.account_id,
+                transaction.transaction_type.value,
                 transaction.amount,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                transaction.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 related_account,
                 self.current_account.balance
             ])
@@ -468,7 +497,6 @@ class BankApp:
             amount_str = self.transfer_amount_entry.get()
             dest_account_id = self.dest_account_entry.get()
             
-            # Validate amount
             try:
                 amount = Decimal(amount_str)
                 if amount <= 0:
@@ -476,7 +504,10 @@ class BankApp:
             except:
                 raise ValueError("Please enter a valid positive amount")
             
-            # Execute transfer through the service
+            dest_account = self.account_service.get_account(dest_account_id)
+            if not dest_account:
+                raise ValueError("Destination account not found")
+            
             success = self.account_service.transfer(
                 source_account_id=self.current_account.account_id,
                 target_account_id=dest_account_id,
@@ -484,15 +515,12 @@ class BankApp:
             )
             
             if success:
-                # Refresh current account data
                 self.current_account = self.account_service.get_account(self.current_account.account_id)
                 
-                # Create and save transfer transaction
                 transaction = TransferTransaction(
-                    transaction_id=str(datetime.now().timestamp()),
                     amount=float(amount),
                     source_account_id=self.current_account.account_id,
-                    target_account_id=dest_account_id
+                    destination_account_id=dest_account_id
                 )
                 self.save_transaction_to_csv(transaction)
                 
@@ -529,7 +557,6 @@ class BankApp:
             height=self.window_height
         )
         
-        # Account info
         tk.Label(
             self.transaction_frame,
             text=f"Account: {self.current_account.account_id}",
@@ -544,7 +571,6 @@ class BankApp:
             bg="white"
         ).pack(pady=5)
         
-        # Transaction type
         type_frame = tk.Frame(self.transaction_frame, bg="white")
         type_frame.pack(pady=10)
         
@@ -575,7 +601,6 @@ class BankApp:
             font=("Arial", 11)
         ).grid(row=0, column=2, padx=5, sticky="w")
         
-        # Amount entry
         amount_frame = tk.Frame(self.transaction_frame, bg="white")
         amount_frame.pack(pady=10)
         
@@ -593,7 +618,6 @@ class BankApp:
         )
         self.amount_entry.grid(row=0, column=1, padx=5, sticky="w")
         
-        # Action buttons
         button_frame = tk.Frame(self.transaction_frame, bg="white")
         button_frame.pack(pady=20)
         
@@ -620,11 +644,9 @@ class BankApp:
     def process_transaction(self):
         """Process the transaction from the form"""
         try:
-            # Get form values
             amount_str = self.amount_entry.get()
             trans_type = self.trans_type.get()
             
-            # Validate amount
             try:
                 amount = Decimal(amount_str)
                 if amount <= 0:
@@ -632,28 +654,21 @@ class BankApp:
             except:
                 raise ValueError("Please enter a valid positive amount")
             
-            # Create appropriate transaction
             if trans_type == "deposit":
                 transaction = DepositTransaction(
-                    transaction_id=str(datetime.now().timestamp()),
                     amount=float(amount),
                     account_id=self.current_account.account_id
                 )
             else:  # withdrawal
                 transaction = WithdrawalTransaction(
-                    transaction_id=str(datetime.now().timestamp()),
                     amount=float(amount),
                     account_id=self.current_account.account_id
                 )
             
-            # Execute transaction through the service
             success = self.account_service.execute_transaction(transaction)
             
             if success:
-                # Refresh current account data
                 self.current_account = self.account_service.get_account(self.current_account.account_id)
-                
-                # Save the transaction to CSV
                 self.save_transaction_to_csv(transaction)
                 
                 messagebox.showinfo(
@@ -674,45 +689,37 @@ class BankApp:
     def view_transaction_history(self):
         """Display transaction history from CSV file"""
         try:
-            # Create a new window for transactions
             history_window = tk.Toplevel(self.root)
             history_window.title("Transaction History")
             history_window.geometry("800x600")
             
-            # Create a frame for the treeview and scrollbar
             frame = tk.Frame(history_window)
             frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
             
-            # Create a treeview with scrollbar
             tree = ttk.Treeview(frame, columns=("Date", "Type", "Amount", "Related Account", "Balance"), show="headings")
             vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
             hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
             tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
             
-            # Grid layout
             tree.grid(column=0, row=0, sticky='nsew')
             vsb.grid(column=1, row=0, sticky='ns')
             hsb.grid(column=0, row=1, sticky='ew')
             
-            # Configure column headings
             tree.heading("Date", text="Date")
             tree.heading("Type", text="Type")
             tree.heading("Amount", text="Amount")
             tree.heading("Related Account", text="Related Account")
             tree.heading("Balance", text="Balance After")
             
-            # Configure column widths
             tree.column("Date", width=150)
             tree.column("Type", width=100)
             tree.column("Amount", width=100)
             tree.column("Related Account", width=150)
             tree.column("Balance", width=100)
             
-            # Configure grid weights
             frame.grid_columnconfigure(0, weight=1)
             frame.grid_rowconfigure(0, weight=1)
             
-            # Read transactions from CSV
             try:
                 with open("transactions.csv", mode='r') as file:
                     reader = csv.DictReader(file)
@@ -732,7 +739,6 @@ class BankApp:
                     font=("Arial", 12)
                 ).pack(pady=20)
             
-            # Add a close button
             close_button = tk.Button(
                 history_window,
                 text="Close",
