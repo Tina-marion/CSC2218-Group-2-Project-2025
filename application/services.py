@@ -1,4 +1,4 @@
-# application/services.py
+
 
 from typing import Protocol
 from domain.entities import Account, Transaction, TransactionType # type: ignore
@@ -118,16 +118,4 @@ class TransactionService:
         self.notification_sender.send(message)
 
 
-class AccountRepository(Protocol):
-    def create_account(self, account: Account) -> None:
-        ...
-    def get_account_by_id(self, account_id: str) -> Account | None:
-        ...
-    def update_account(self, account: Account) -> None:
-        ...
 
-class TransactionRepository(Protocol):
-    def save_transaction(self, txn: Transaction) -> None:
-        ...
-    def get_transactions_for_account(self, account_id: str) -> list[Transaction]:
-        ...
