@@ -1,25 +1,28 @@
-# Notification interfaces
+
 from abc import ABC, abstractmethod
-from ast import Dict
-from typing import List
+from typing import Dict, List
 
 
 class Notification(ABC):
     @abstractmethod
     def send(self, message: str, recipient: str) -> bool:
+        """Send a message to the recipient"""
         pass
+
 
 class EmailNotification(Notification):
     def send(self, message: str, recipient: str) -> bool:
-        # In a real implementation, this would send an actual email
+        # Simulate sending an email
         print(f"Email to {recipient}: {message}")
         return True
 
+
 class SMSNotification(Notification):
     def send(self, message: str, recipient: str) -> bool:
-        # In a real implementation, this would send an actual SMS
+        # Simulate sending an SMS
         print(f"SMS to {recipient}: {message}")
         return True
+
 
 # Notification service using Observer pattern
 class NotificationService:

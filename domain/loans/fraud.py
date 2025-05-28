@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from datetime import timedelta
 from decimal import Decimal
 from typing import Optional
-from domain.entities.account import Account
-from domain.entities.transaction import Transaction
+from domain.models.account import Account
+from domain.models.transaction import Transaction
 
 
 class FraudDetectionResult:

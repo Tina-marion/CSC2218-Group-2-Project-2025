@@ -1,8 +1,8 @@
-from ast import List
+from typing import List
 import logging
-from domain.entities.account import Account, AccountType, CheckingAccount, SavingsAccount
+from domain.models.account import Account, AccountType, CheckingAccount, SavingsAccount
 from domain.models.notifications import NotificationService
-from domain.entities.transaction import Transaction, TransactionType
+from domain.models.transaction import Transaction, TransactionType
 
 
 class AccountService:

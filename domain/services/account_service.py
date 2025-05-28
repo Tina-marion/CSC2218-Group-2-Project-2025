@@ -6,7 +6,7 @@ from domain.services.fund_transfer_service import FundTransferService
 from domain.services.interest_service import InterestService
 from domain.services.limit_enforcement_service import LimitEnforcementService
 from domain.services.statement_service import StatementService
-from domain.services.notification_service import NotificationService
+from domain.services.notification_service import NotificationService # type: ignore
 from typing import Dict, Optional
 import uuid
 

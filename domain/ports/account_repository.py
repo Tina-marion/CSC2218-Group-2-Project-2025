@@ -1,7 +1,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from domain.entities.account import Account
+from domain.models.account import Account
 
 class AccountRepository(ABC):
     """Interface for account persistence"""

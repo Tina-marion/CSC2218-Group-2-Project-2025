@@ -1,7 +1,6 @@
-from domain.models.account import Account, AccountType
-from domain.models.transaction import Transaction, TransactionType, DepositTransaction
+from domain.models.account import AccountType
+from domain.models.transaction import DepositTransaction
 from domain.services.account_service import BankAccountService
-from datetime import datetime
 
 class InterestService:
     def __init__(self, account_service: BankAccountService):

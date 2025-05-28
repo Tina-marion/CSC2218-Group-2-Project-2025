@@ -4,8 +4,8 @@ from decimal import Decimal
 from typing import List
 from datetime import date, datetime, timedelta
 
-from domain.entities.account import Account
-from domain.entities.transaction import TransactionType
+from domain.models.account import Account
+from domain.models.transaction import TransactionType
 
 @dataclass
 class StatementLineItem:

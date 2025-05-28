@@ -1,7 +1,7 @@
 
 
 from typing import Protocol
-from domain.entities import Account, Transaction, TransactionType # type: ignore
+from domain.models import Account, Transaction, TransactionType # type: ignore
 from domain.exceptions import InsufficientFunds # type: ignore
 import logging
 

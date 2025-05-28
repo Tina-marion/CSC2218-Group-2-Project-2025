@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import date
-from domain.entities.transaction import TransactionType
+from domain.models.transaction import TransactionType
 
 
 class TransactionLimit(ABC):

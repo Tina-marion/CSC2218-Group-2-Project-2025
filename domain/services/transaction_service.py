@@ -1,50 +1,76 @@
-# domain/services/transaction_service.py
-from typing import List
-from domain.entities.account import Account
-from domain.entities.transaction import Transaction, TransactionType
-from domain.ports.account_repository import AccountRepository
-from domain.ports.transaction_repository import TransactionRepository
 
-class TransactionService:
-    """Handles transaction-related business logic"""
-    def __init__(
-        self, 
-        transaction_repo: TransactionRepository,
-        account_repo: AccountRepository
-    ):
-        self._transaction_repo = transaction_repo
-        self._account_repo = account_repo
+class Account:
+    def __init__(self, account_id: int, balance: float):
+        self.id = account_id
+        self.balance = balance
 
-    def execute_transaction(
-        self,
-        account_id: int,
-        amount: float,
-        transaction_type: TransactionType
-    ) -> Transaction:
-        """Executes and records a financial transaction"""
-        account = self._account_repo.find_by_id(account_id)
+    def deposit(self, amount: float):
+        self.balance += amount
+
+    def withdraw(self, amount: float):
+        if amount > self.balance:
+            raise ValueError("Insufficient balance")
+        self.balance -= amount
+
+
+class Transaction:
+    def __init__(self, account_id: int, amount: float, type: TransactionType):
+        self.account_id = account_id
+        self.amount = amount
+        self.type = type
+
+
+
+from domain.models.transaction import Transaction, TransactionType
+
+class TransactionUseCase:
+    def __init__(self, account_repo, transaction_repo):
+        self.account_repo = account_repo
+        self.transaction_repo = transaction_repo
+
+    def execute_transaction(self, account_id: int, amount: float, transaction_type: TransactionType) -> Transaction:
+        account = self.account_repo.find_by_id(account_id)
         if not account:
             raise ValueError("Account not found")
 
-        # Create transaction first to ensure we have all data
-        transaction = Transaction(
-            account_id=account_id,
-            amount=amount,
-            type=transaction_type
-        )
+        transaction = Transaction(account_id, amount, transaction_type)
 
-        # Execute the transaction
         if transaction_type == TransactionType.DEPOSIT:
             account.deposit(amount)
-        else:
+        elif transaction_type == TransactionType.WITHDRAWAL:
             account.withdraw(amount)
+        else:
+            raise ValueError("Invalid transaction type")
 
-        # Persist changes
-        self._account_repo.update(account)
-        return self._transaction_repo.create(transaction)
+        self.account_repo.update(account)
+        self.transaction_repo.create(transaction)
+        return transaction
 
-    def get_account_transactions(self, account_id: int) -> List[Transaction]:
-        """Retrieves all transactions for an account"""
-        if not self._account_repo.find_by_id(account_id):
+    def get_account_transactions(self, account_id: int):
+        account = self.account_repo.find_by_id(account_id)
+        if not account:
             raise ValueError("Account not found")
-        return self._transaction_repo.find_by_account_id(account_id)
+        return self.transaction_repo.find_by_account_id(account_id)
+
+
+class InMemoryAccountRepository:
+    def __init__(self):
+        self.accounts = {}
+
+    def find_by_id(self, account_id: int):
+        return self.accounts.get(account_id)
+
+    def update(self, account):
+        self.accounts[account.id] = account
+
+
+# interface_adapters/repositories/transaction_repository.py
+class InMemoryTransactionRepository:
+    def __init__(self):
+        self.transactions = []
+
+    def create(self, transaction):
+        self.transactions.append(transaction)
+
+    def find_by_account_id(self, account_id):
+        return [t for t in self.transactions if t.account_id == account_id]
